@@ -63,4 +63,5 @@ export interface StockDetailData {
   signalWeekly: TechnicalSignal;
   signalMonthly: TechnicalSignal;
   sentiment: SentimentResult;
+  isMockData?: boolean; // true when live API unavailable — shows demo banner in UI
 }

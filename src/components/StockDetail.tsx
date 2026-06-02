@@ -97,6 +97,13 @@ export default function StockDetail({ quote, onClose }: Props) {
         </div>
 
         <div className="p-4 space-y-5 pb-6">
+          {/* Mock data banner */}
+          {data?.isMockData && (
+            <div className="bg-amber-900/30 border border-amber-600/50 rounded-lg px-3 py-2 text-xs text-amber-400">
+              ⚠️ ข้อมูลตัวอย่าง — API ไม่พร้อมใช้งานในสภาพแวดล้อมนี้ รันบนเครื่องตัวเองเพื่อดูข้อมูลจริง
+            </div>
+          )}
+
           {/* Timeframe selector */}
           <div className="flex gap-2">
             {TIMEFRAMES.map((tf) => (
