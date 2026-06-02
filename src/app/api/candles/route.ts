@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchCandles } from "@/lib/finnhub";
-import { computeIndicators, computeSignal, computeSentiment, rsiSeries, sma } from "@/lib/indicators";
-import type { Timeframe, StockDetailData } from "@/types";
+import { computePivotPoints } from "@/lib/indicators";
+import type { Timeframe, CandleApiResponse } from "@/types";
 
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol")?.toUpperCase();
@@ -13,35 +13,13 @@ export async function GET(req: NextRequest) {
   }
 
   const { candles, isMock } = await fetchCandles(symbol, timeframe);
+  const currentPrice = candles[candles.length - 1]?.close ?? 0;
+  const pivotPoints = computePivotPoints(candles);
 
-  const closes = candles.map((c) => c.close);
-  const volumes = candles.map((c) => c.volume);
-  const currentPrice = closes[closes.length - 1];
-  const latestVolume = volumes[volumes.length - 1];
-
-  const indicators = computeIndicators(candles);
-  const signalWeekly = computeSignal(computeIndicators(candles.slice(-20)), currentPrice);
-  const signalMonthly = computeSignal(computeIndicators(candles.slice(-60)), currentPrice);
-  const sentiment = computeSentiment(currentPrice, indicators, latestVolume);
-
-  const ma20Series = sma(closes, 20);
-  const ma50Series = sma(closes, 50);
-  const rsiArr = rsiSeries(closes);
-
-  const enrichedCandles = candles.map((c, i) => ({
-    ...c,
-    ma20: ma20Series[i],
-    ma50: ma50Series[i],
-    rsi: rsiArr[i],
-  }));
-
-  const response: StockDetailData & { enrichedCandles: typeof enrichedCandles } = {
+  const response: CandleApiResponse = {
     candles,
-    enrichedCandles,
-    indicators,
-    signalWeekly,
-    signalMonthly,
-    sentiment,
+    pivotPoints,
+    currentPrice,
     isMockData: isMock,
   };
 
