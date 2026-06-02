@@ -34,11 +34,11 @@ interface Props {
   symbol: string;
 }
 
-function formatTime(ts: number, tf: Timeframe): string {
+function formatTime(ts: number, tf: Timeframe, intraday: boolean): string {
   const d = new Date(ts * 1000);
-  if (tf === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  if (tf === "1Y") return d.toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
-  return d.toLocaleDateString("th-TH", { month: "short", day: "numeric" });
+  if (intraday) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (tf === "1Y") return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function priceTickFormatter(v: number) {
@@ -70,6 +70,9 @@ export default function PriceChart({ candles, timeframe, support, resistance, sy
     );
   }
 
+  // Detect intraday (bars < 1 day apart) to pick the right time label format
+  const intraday = candles.length > 1 && (candles[1].time - candles[0].time) < 86400;
+
   const prices = candles.map((c) => c.close);
   const minPrice = Math.min(...prices) * 0.99;
   const maxPrice = Math.max(...prices) * 1.01;
@@ -83,7 +86,7 @@ export default function PriceChart({ candles, timeframe, support, resistance, sy
           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
           <XAxis
             dataKey="time"
-            tickFormatter={(v) => formatTime(v, timeframe)}
+            tickFormatter={(v) => formatTime(v, timeframe, intraday)}
             stroke="#475569"
             tick={{ fontSize: 10, fill: "#64748b" }}
             interval="preserveStartEnd"

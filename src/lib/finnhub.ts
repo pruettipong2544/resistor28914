@@ -57,22 +57,34 @@ interface FinnhubQuote {
   t: number;  // timestamp
 }
 
+// Deterministic price anchor — same symbol always yields the same price.
+// Used to keep quote card and candle chart in sync in mock mode.
+function mockSeedPrice(symbol: string): number {
+  const seed = symbol.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+  let rng = (seed * 69069 + 1) >>> 0;
+  const rand = () => { rng = (rng * 1664525 + 1013904223) & 0xffffffff; return (rng >>> 0) / 0xffffffff; };
+  const base = (seed % 280) + 20;
+  return parseFloat((base * (0.85 + rand() * 0.3)).toFixed(2));
+}
+
 // Mock quote seeded from symbol (used when Finnhub is unreachable)
 function mockQuote(symbol: string): Quote {
+  const price = mockSeedPrice(symbol);
   const seed = symbol.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-  const price = parseFloat(((seed % 280) + 20 + Math.random() * 2).toFixed(2));
-  const change = parseFloat(((Math.random() - 0.45) * price * 0.03).toFixed(2));
+  let rng = (seed * 22695477 + 1) >>> 0;
+  const rand = () => { rng = (rng * 1664525 + 1013904223) & 0xffffffff; return (rng >>> 0) / 0xffffffff; };
+  const change = parseFloat(((rand() - 0.45) * price * 0.03).toFixed(2));
   return {
     symbol,
-    name: symbol, // name unknown without profile API
+    name: symbol,
     price,
     change,
     changePercent: parseFloat(((change / price) * 100).toFixed(2)),
-    high: parseFloat((price * 1.015).toFixed(2)),
-    low: parseFloat((price * 0.985).toFixed(2)),
+    high: parseFloat((price * (1 + rand() * 0.015)).toFixed(2)),
+    low: parseFloat((price * (1 - rand() * 0.015)).toFixed(2)),
     open: parseFloat((price - change * 0.5).toFixed(2)),
     prevClose: parseFloat((price - change).toFixed(2)),
-    volume: Math.floor(Math.random() * 5_000_000 + 500_000),
+    volume: Math.floor(rand() * 5_000_000 + 500_000),
     timestamp: Math.floor(Date.now() / 1000),
   };
 }
@@ -172,41 +184,64 @@ function timeRange(timeframe: Timeframe): { from: number; to: number } {
 }
 
 // --- Mock candle generator (fallback when live API is unavailable) ---
-// Generates deterministic-looking price data seeded from the symbol string.
-// Used when the server's outbound IP is blocked by Finnhub (e.g. cloud envs).
+// Last candle close is anchored to mockSeedPrice so it matches the mock quote.
+// 1D timeframe uses 30-min intraday bars; others use daily bars (weekends skipped).
 function mockCandles(symbol: string, timeframe: Timeframe): Candle[] {
-  const count = MAX_CANDLES[timeframe];
-  const now = Math.floor(Date.now() / 1000);
-  const DAY = 86400;
-
-  // Seed price from symbol characters so each stock looks different
+  const targetPrice = mockSeedPrice(symbol);
   const seed = symbol.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-  const basePrice = (seed % 280) + 20; // range $20–$300
-  const volatility = (seed % 5 + 1) / 100; // 1%–5% daily
-
-  // Simple seeded pseudo-random (LCG) for determinism
-  let rng = seed;
+  // Different RNG stream from mockSeedPrice / mockQuote to avoid correlation
+  let rng = (seed * 1566083941 + 1) >>> 0;
   const rand = () => { rng = (rng * 1664525 + 1013904223) & 0xffffffff; return (rng >>> 0) / 0xffffffff; };
 
-  const candles: Candle[] = [];
-  let price = basePrice;
+  const now = Math.floor(Date.now() / 1000);
 
-  for (let i = count - 1; i >= 0; i--) {
-    const time = now - i * DAY;
+  // Build timestamp array per timeframe
+  let times: number[];
+  if (timeframe === "1D") {
+    // 13 half-hour bars ending now (intraday look)
+    const BAR = 1800;
+    times = Array.from({ length: 13 }, (_, i) => now - (12 - i) * BAR);
+  } else {
+    // Daily bars, skip Saturday (6) and Sunday (0)
+    const count = MAX_CANDLES[timeframe];
+    times = [];
+    let d = now;
+    while (times.length < count) {
+      const dow = new Date(d * 1000).getDay();
+      if (dow !== 0 && dow !== 6) times.unshift(d);
+      d -= 86400;
+    }
+  }
+
+  const volPerBar = timeframe === "1D" ? 0.003 : timeframe === "1W" ? 0.012 : 0.015;
+
+  // Generate a forward walk starting from targetPrice
+  let price = targetPrice;
+  const raw: Candle[] = [];
+  for (const time of times) {
     const open = price;
-    const move = (rand() - 0.47) * volatility * price; // slight upward drift
-    price = Math.max(1, price + move);
-    const swing = rand() * volatility * price;
-    candles.push({
+    const move = (rand() - 0.48) * volPerBar * price;
+    price = Math.max(0.01, price + move);
+    const swing = rand() * volPerBar * 0.4 * price;
+    raw.push({
       time,
       open,
       high: Math.max(open, price) + swing,
-      low:  Math.min(open, price) - swing,
+      low: Math.min(open, price) - swing,
       close: price,
-      volume: Math.floor((rand() * 5_000_000 + 500_000)),
+      volume: Math.floor(rand() * 5_000_000 + 500_000),
     });
   }
-  return candles;
+
+  // Scale all OHLC so the last close exactly equals targetPrice
+  const scale = targetPrice / raw[raw.length - 1].close;
+  return raw.map((c) => ({
+    ...c,
+    open: parseFloat((c.open * scale).toFixed(4)),
+    high: parseFloat((c.high * scale).toFixed(4)),
+    low: parseFloat((c.low * scale).toFixed(4)),
+    close: parseFloat((c.close * scale).toFixed(4)),
+  }));
 }
 
 export async function fetchCandles(
