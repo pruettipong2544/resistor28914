@@ -28,7 +28,7 @@ interface Props {
 }
 
 const TIMEFRAMES: Timeframe[] = ["1D", "1W", "1M", "1Y"];
-const TF_LABELS: Record<Timeframe, string> = { "1D": "1 วัน", "1W": "1 สัปดาห์", "1M": "1 เดือน", "1Y": "1 ปี" };
+const TF_LABELS: Record<Timeframe, string> = { "1D": "5 วันล่าสุด", "1W": "15 วันล่าสุด", "1M": "1 เดือน", "1Y": "1 ปี" };
 
 export default function StockDetail({ quote, onClose }: Props) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1M");

@@ -103,12 +103,16 @@ interface FinnhubCandles {
   s: string; // "ok" or "no_data"
 }
 
-const RESOLUTION_MAP: Record<Timeframe, string> = {
-  "1D": "5",
-  "1W": "60",
-  "1M": "D",
-  "1Y": "D",
-};
+// Finnhub free tier reliably supports resolution "D" (daily) for all US stocks.
+// Intraday resolutions (1, 5, 15, 30, 60) are not guaranteed on free tier and
+// often return no_data for small-cap/newer tickers. All timeframes use daily bars.
+//
+// Candle counts per timeframe:
+//   1D → last 10 calendar days  (~5–7 trading days)
+//   1W → last 21 calendar days  (~10–15 trading days)
+//   1M → last 45 calendar days  (~30 trading days)
+//   1Y → last 400 calendar days (~252 trading days)
+// Buffers are added to account for weekends and public holidays.
 
 const TTL_MAP: Record<Timeframe, number> = {
   "1D": TTL.CANDLE_1D,
@@ -117,14 +121,25 @@ const TTL_MAP: Record<Timeframe, number> = {
   "1Y": TTL.CANDLE_1Y,
 };
 
+// How many calendar days to look back per timeframe (with weekend/holiday buffer)
+const LOOKBACK_DAYS: Record<Timeframe, number> = {
+  "1D": 10,
+  "1W": 21,
+  "1M": 45,
+  "1Y": 400,
+};
+
+// Max candles to keep per timeframe after fetching (trim to relevant window)
+const MAX_CANDLES: Record<Timeframe, number> = {
+  "1D": 7,
+  "1W": 15,
+  "1M": 30,
+  "1Y": 252,
+};
+
 function timeRange(timeframe: Timeframe): { from: number; to: number } {
   const to = Math.floor(Date.now() / 1000);
-  const DAY = 86400;
-  const from =
-    timeframe === "1D" ? to - DAY :
-    timeframe === "1W" ? to - 7 * DAY :
-    timeframe === "1M" ? to - 30 * DAY :
-    to - 365 * DAY;
+  const from = to - LOOKBACK_DAYS[timeframe] * 86400;
   return { from, to };
 }
 
@@ -136,9 +151,9 @@ export async function fetchCandles(
   const cached = getCached<Candle[]>(cacheKey);
   if (cached) return cached;
 
-  const resolution = RESOLUTION_MAP[timeframe];
   const { from, to } = timeRange(timeframe);
-  const url = `${BASE}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}&token=${apiKey()}`;
+  // Always use daily resolution — reliably supported on Finnhub free tier
+  const url = `${BASE}/stock/candle?symbol=${symbol}&resolution=D&from=${from}&to=${to}&token=${apiKey()}`;
 
   try {
     const res = await throttledFetch(url);
@@ -155,8 +170,10 @@ export async function fetchCandles(
       volume: data.v[i],
     }));
 
-    setCached(cacheKey, candles, TTL_MAP[timeframe]);
-    return candles;
+    // Trim to the most relevant recent candles for this timeframe
+    const trimmed = candles.slice(-MAX_CANDLES[timeframe]);
+    setCached(cacheKey, trimmed, TTL_MAP[timeframe]);
+    return trimmed;
   } catch {
     return [];
   }
