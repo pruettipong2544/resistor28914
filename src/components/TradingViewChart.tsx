@@ -3,22 +3,38 @@
 import { useEffect, useRef } from "react";
 import type { Timeframe } from "@/types";
 
+// Study ID type: plain string ID or object with custom inputs
+export type TvStudyId = string | { id: string; inputs?: Record<string, unknown> };
+
 interface Props {
-  tvSymbol: string;  // e.g., "NASDAQ:AAPL"
+  tvSymbol: string;
   timeframe: Timeframe;
+  studies?: TvStudyId[];  // passed from parent; re-mount via key to apply changes
   height?: number;
 }
 
 // Maps our timeframe tabs to TradingView range + bar interval
 const TF_CONFIG: Record<Timeframe, { range: string; interval: string }> = {
-  "1D": { range: "1D",  interval: "30"  }, // today, 30-min bars
-  "1W": { range: "5D",  interval: "60"  }, // 5 days, hourly bars
-  "1M": { range: "1M",  interval: "D"   }, // 1 month, daily bars
-  "1Y": { range: "12M", interval: "W"   }, // 1 year, weekly bars
+  "1D": { range: "1D",  interval: "30" },
+  "1W": { range: "5D",  interval: "60" },
+  "1M": { range: "1M",  interval: "D"  },
+  "1Y": { range: "12M", interval: "W"  },
 };
 
-// Re-mounts when tvSymbol or timeframe changes (via key prop at call site).
-export default function TradingViewChart({ tvSymbol, timeframe, height = 450 }: Props) {
+// TradingView Advanced Chart widget.
+// Re-mounts when tvSymbol, timeframe, or studies change (via key prop at call site).
+// Study IDs use "@tv-basicstudies" format — verified IDs as of 2025:
+//   RSI:               "RSI@tv-basicstudies"
+//   MACD:              "MACD@tv-basicstudies"
+//   EMA (period):      { id: "MAExp@tv-basicstudies", inputs: { length: N } }
+//   Pivot Pts Std:     "PivotPointsStandard@tv-basicstudies"
+//   Linear Regression: "LinearRegression@tv-basicstudies"
+export default function TradingViewChart({
+  tvSymbol,
+  timeframe,
+  studies = ["RSI@tv-basicstudies"],
+  height = 550,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,13 +61,13 @@ export default function TradingViewChart({ tvSymbol, timeframe, height = 450 }: 
       locale: "en",
       hide_top_toolbar: false,
       save_image: false,
-      studies: ["STD;RSI"],
+      studies,
       support_host: "https://www.tradingview.com",
     });
     container.appendChild(script);
 
     return () => { container.innerHTML = ""; };
-  }, []); // deps intentionally empty — parent controls re-mount via key
+  }, []); // deps empty — parent controls re-mount via key
 
   return (
     <div
