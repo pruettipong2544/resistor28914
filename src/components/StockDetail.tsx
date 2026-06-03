@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Timeframe, CandleApiResponse, DcfApiResponse } from "@/types";
+import type { Timeframe, CandleApiResponse, DcfApiResponse, QuoteData } from "@/types";
 import { getTvSymbol, getCompanyName } from "@/config/stocks";
 import TradingViewChart, { type TvStudyId } from "./TradingViewChart";
 import TradingViewAnalysis from "./TradingViewAnalysis";
@@ -36,6 +36,14 @@ const STUDY_OPTIONS: StudyOption[] = [
 
 const DEFAULT_ENABLED = new Set(["rsi", "ema", "pivot"]);
 
+// Returns true when the extended-hours timestamp is recent enough to display
+function isExtendedHoursRecent(ts: number | undefined): ts is number {
+  if (!ts) return false;
+  return Date.now() / 1000 - ts < 4 * 3600; // within last 4 hours
+}
+
+function fmt2(n: number) { return n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`; }
+
 // Placeholder shown when real candle data is unavailable
 function NoRealDataCard({ title }: { title: string }) {
   return (
@@ -55,6 +63,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dcfData, setDcfData] = useState<DcfApiResponse | null>(null);
+  const [quote, setQuote] = useState<QuoteData | null>(null);
 
   const tvSymbol = getTvSymbol(symbol);
   const companyName = getCompanyName(symbol);
@@ -88,12 +97,17 @@ export default function StockDetail({ symbol, onClose }: Props) {
     }
   }, [symbol]);
 
-  // DCF fetch once per symbol open
+  // DCF + quote fetch once per symbol open
   useEffect(() => {
     setDcfData(null);
+    setQuote(null);
     fetch(`/api/dcf?symbol=${symbol}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setDcfData(d); })
+      .catch(() => {});
+    fetch(`/api/quotes?symbols=${symbol}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: Record<string, QuoteData> | null) => { if (d?.[symbol]) setQuote(d[symbol]); })
       .catch(() => {});
   }, [symbol]);
 
@@ -124,9 +138,28 @@ export default function StockDetail({ symbol, onClose }: Props) {
               <span className="text-xs text-slate-600 font-mono hidden md:block">{tvSymbol}</span>
             </div>
 
-            {/* Center: TradingView real-time price (same source as chart) */}
-            <div className="flex-1 min-w-0 hidden sm:block">
+            {/* Center: TradingView real-time price (same source as chart) + after-hours */}
+            <div className="flex-1 min-w-0 hidden sm:flex flex-col gap-1">
               <TradingViewSingleQuote key={tvSymbol} tvSymbol={tvSymbol} />
+              {/* After-hours / pre-market chip — shown only when data is fresh */}
+              {quote && !quote.isMock && isExtendedHoursRecent(quote.extendedTimestamp) && (
+                <div className="flex items-center gap-2 px-1">
+                  <span className="text-[10px] text-slate-500 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">
+                    After hours
+                  </span>
+                  <span className="text-xs font-mono text-slate-200">
+                    ${quote.extendedPrice!.toFixed(2)}
+                  </span>
+                  {quote.extendedChangePct !== undefined && (
+                    <span className={`text-xs font-medium ${quote.extendedChangePct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {fmt2(quote.extendedChangePct)}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-slate-600">
+                    {new Date(quote.extendedTimestamp! * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })} ET
+                  </span>
+                </div>
+              )}
             </div>
 
             <button
@@ -238,7 +271,11 @@ export default function StockDetail({ symbol, onClose }: Props) {
 
             {/* DCF Valuation */}
             {dcfData ? (
-              <DCFPanel dcf={dcfData} symbol={symbol} />
+              <DCFPanel
+                dcf={dcfData}
+                symbol={symbol}
+                livePrice={quote && !quote.isMock ? quote.price : undefined}
+              />
             ) : (
               <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 h-24 flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />

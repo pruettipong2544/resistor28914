@@ -55,7 +55,16 @@ export interface CandleApiResponse {
   signals: SignalData | null;
 }
 
-export interface QuoteData { price: number; change: number; changePct: number; isMock: boolean; }
+export interface QuoteData {
+  price: number;
+  change: number;
+  changePct: number;
+  isMock: boolean;
+  // Extended / after-hours (present only when FMP returns them and they are recent)
+  extendedPrice?: number;
+  extendedChangePct?: number;
+  extendedTimestamp?: number; // unix seconds
+}
 
 export interface DcfResult {
   intrinsicValue: number;   // per share, discounted

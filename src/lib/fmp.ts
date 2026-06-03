@@ -53,6 +53,11 @@ export interface FmpQuoteItem {
   changesPercentage: number;
   yearHigh: number;
   avgVolume: number;
+  // Extended / after-hours fields (present in FMP /quote endpoint)
+  extendedPrice?: number;
+  extendedChange?: number;
+  extendedChangePercent?: number;
+  extendedPriceTimestamp?: number; // unix seconds
 }
 
 export async function fetchQuotes(symbols: string[]): Promise<{ data: FmpQuoteItem[]; isMock: boolean }> {

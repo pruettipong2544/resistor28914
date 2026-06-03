@@ -15,7 +15,14 @@ export async function GET(req: NextRequest) {
   for (const sym of symbols) {
     const q = quoteMap.get(sym);
     if (q) {
-      result[sym] = { price: q.price, change: q.change, changePct: q.changesPercentage, isMock };
+      const entry: QuoteData = { price: q.price, change: q.change, changePct: q.changesPercentage, isMock };
+      // Include extended hours data only when the timestamp is present (FMP populates this during extended sessions)
+      if (q.extendedPrice !== undefined && q.extendedPrice !== null && q.extendedPriceTimestamp) {
+        entry.extendedPrice = q.extendedPrice;
+        entry.extendedChangePct = q.extendedChangePercent;
+        entry.extendedTimestamp = q.extendedPriceTimestamp;
+      }
+      result[sym] = entry;
     } else {
       // Fill any gaps with per-symbol mock
       const { price, rand } = mockSeed(sym);
