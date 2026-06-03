@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchCandles } from "@/lib/finnhub";
 import { fetchHistoricalPrices } from "@/lib/fmp";
 import { computePivotPoints, computeSignals } from "@/lib/indicators";
 import type { Timeframe, Candle, CandleApiResponse } from "@/types";
 
-// Mirror of finnhub.ts lookback/max settings for FMP fallback
-const LOOKBACK_DAYS: Record<Timeframe, number> = {
-  "1D": 10, "1W": 21, "1M": 45, "1Y": 400,
-};
-const MAX_CANDLES: Record<Timeframe, number> = {
-  "1D": 7, "1W": 15, "1M": 30, "1Y": 252,
-};
+// Request ~560 calendar days to cover EMA200 (≈400 trading days) for all timeframes.
+// FMP free tier provides daily EOD bars only.
+const LOOKBACK_DAYS = 560;
+const MAX_BARS = 400;
 
 function dateStr(offsetDays: number): string {
   const d = new Date(Date.now() - offsetDays * 86_400_000);
@@ -26,34 +22,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "invalid timeframe" }, { status: 400 });
   }
 
-  // ── Step 1: try Finnhub ───────────────────────────────────────────────────
+  // ── Primary: FMP daily historical (free tier, EOD bars) ──────────────────
   let candles: Candle[] = [];
   let isMock = true;
 
-  const finnhub = await fetchCandles(symbol, timeframe);
-  if (!finnhub.isMock) {
-    console.log(`[finnhub:candles:${symbol}:${timeframe}] ok — ${finnhub.candles.length} bars`);
-    candles = finnhub.candles;
+  const fromDate = dateStr(LOOKBACK_DAYS);
+  const toDate   = dateStr(0);
+  const fmp = await fetchHistoricalPrices(symbol, fromDate, toDate, MAX_BARS);
+  if (!fmp.isMock && fmp.bars.length > 0) {
+    candles = fmp.bars.map(b => ({
+      time: Math.floor(new Date(b.date).getTime() / 1000),
+      open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume,
+    }));
     isMock = false;
   } else {
-    console.log(`[finnhub:candles:${symbol}:${timeframe}] fail — fell back (see finnhub.ts logs)`);
-    // ── Step 2: try FMP as fallback ─────────────────────────────────────────
-    const fromDate = dateStr(LOOKBACK_DAYS[timeframe]);
-    const toDate   = dateStr(0);
-    const fmp = await fetchHistoricalPrices(symbol, fromDate, toDate, MAX_CANDLES[timeframe]);
-    if (!fmp.isMock && fmp.bars.length > 0) {
-      console.log(`[fmp:candles:${symbol}:${timeframe}] ok — ${fmp.bars.length} bars`);
-      candles = fmp.bars.map(b => ({
-        time: Math.floor(new Date(b.date).getTime() / 1000),
-        open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume,
-      }));
-      isMock = false;
-    } else {
-      // ── Step 3: mock (both sources unavailable) ──────────────────────────
-      console.log(`[candles:${symbol}:${timeframe}] both providers failed — using mock data`);
-      candles = finnhub.candles;
-      isMock = true;
-    }
+    console.log(`[candles:${symbol}:${timeframe}] FMP failed — no pivot/signal data available`);
   }
 
   const currentPrice = candles[candles.length - 1]?.close ?? 0;

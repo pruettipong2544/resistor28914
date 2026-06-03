@@ -209,12 +209,25 @@ export async function fetchScreener(params: FmpScreenerParams): Promise<{ data: 
 }
 
 // ─── Historical OHLCV (daily bars) ───────────────────────────────────────────
-// Used as fallback when Finnhub is unavailable (e.g. cloud IP blocks).
-// FMP returns bars in reverse-chronological order; we reverse to ascending.
+// Primary data source for candles. FMP returns newest-first; we reverse to asc.
+// Tries stable endpoint first, then v3 as fallback.
 
 export interface FmpHistoricalBar {
   date: string;  // "YYYY-MM-DD"
   open: number; high: number; low: number; close: number; volume: number;
+}
+
+const BASE_STABLE = "https://financialmodelingprep.com/stable";
+
+function parseBars(raw: unknown): FmpHistoricalBar[] | null {
+  if (Array.isArray(raw) && raw.length > 0 && "date" in raw[0]) {
+    return raw as FmpHistoricalBar[];
+  }
+  const obj = raw as { historical?: FmpHistoricalBar[] };
+  if (obj?.historical && obj.historical.length > 0) {
+    return obj.historical;
+  }
+  return null;
 }
 
 export async function fetchHistoricalPrices(
@@ -232,26 +245,39 @@ export async function fetchHistoricalPrices(
   const key = apiKey();
   if (!key) {
     console.log(`[fmp:hist:${symbol}] skip — missing FMP_API_KEY`);
-  } else {
+    return { bars: [], isMock: true };
+  }
+
+  const qs = `from=${fromDate}&to=${toDate}&apikey=${key}`;
+  const endpoints = [
+    `${BASE_STABLE}/historical-price/${symbol}?${qs}`,
+    `${BASE}/historical-price-full/${symbol}?${qs}`,
+  ];
+
+  for (const url of endpoints) {
+    const label = url.includes("/stable/") ? "stable" : "v3";
     try {
-      const url = `${BASE}/historical-price-full/${symbol}?from=${fromDate}&to=${toDate}&apikey=${key}`;
       const res = await fetch(url, { next: { revalidate: 0 } });
-      if (res.ok) {
-        const data: { historical?: FmpHistoricalBar[] } = await res.json();
-        if (data.historical && data.historical.length > 0) {
-          const bars = data.historical.slice().reverse().slice(-maxBars);
-          console.log(`[fmp:hist:${symbol}] ok — ${bars.length} bars`);
-          setCached(cacheKey, bars, TTL);
-          return { bars, isMock: false };
-        }
-        console.log(`[fmp:hist:${symbol}] fail — empty historical data`);
-      } else {
-        console.log(`[fmp:hist:${symbol}] fail — ${fmpHttpReason(res.status)}`);
+      if (!res.ok) {
+        console.log(`[fmp:hist:${symbol}:${label}] fail — ${fmpHttpReason(res.status)}`);
+        continue;
       }
+      const raw: unknown = await res.json();
+      const parsed = parseBars(raw);
+      if (!parsed) {
+        console.log(`[fmp:hist:${symbol}:${label}] fail — empty or unrecognised response shape`);
+        continue;
+      }
+      const bars = parsed.slice().reverse().slice(-maxBars);
+      console.log(`[fmp:hist:${symbol}:${label}] ok — ${bars.length} bars`);
+      setCached(cacheKey, bars, TTL);
+      return { bars, isMock: false };
     } catch (e) {
-      console.log(`[fmp:hist:${symbol}] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
+      console.log(`[fmp:hist:${symbol}:${label}] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  console.log(`[fmp:hist:${symbol}] both endpoints failed — using mock`);
   return { bars: [], isMock: true };
 }
 
