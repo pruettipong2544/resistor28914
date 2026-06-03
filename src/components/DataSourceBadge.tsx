@@ -38,12 +38,13 @@ export default function DataSourceBadge() {
   const dot = isReal ? "bg-green-400" : isPartial ? "bg-yellow-400" : "bg-slate-500";
   const label = isReal ? "REAL" : isPartial ? "PARTIAL" : "MOCK";
 
-  function ProviderRow({ name, p }: { name: string; p: HealthResponse["finnhub"] }) {
+  function ProviderRow({ name, note, p }: { name: string; note: string; p: HealthResponse["finnhub"] }) {
     return (
       <div className="flex items-start gap-2">
         <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.ok ? "bg-green-400" : "bg-red-400"}`} />
         <div className="min-w-0">
           <span className="text-slate-300 font-medium">{name}</span>
+          <span className="text-slate-600 ml-1 text-[10px]">({note})</span>
           {p.ok
             ? <span className="text-green-400 ml-1 text-[10px]">ok{p.price ? ` · AAPL $${p.price.toFixed(2)}` : ""}</span>
             : <>
@@ -72,8 +73,9 @@ export default function DataSourceBadge() {
         <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 space-y-3 text-xs">
           <p className="text-slate-400 font-semibold">แหล่งข้อมูลตอนนี้</p>
 
-          <ProviderRow name="Finnhub" p={health.finnhub} />
-          <ProviderRow name="FMP" p={health.fmp} />
+          <ProviderRow name="Finnhub" note="quotes" p={health.finnhub} />
+          <ProviderRow name="Twelve Data" note="candles / S&R / signal" p={health.twelvedata} />
+          <ProviderRow name="FMP" note="DCF / screener" p={health.fmp} />
 
           {health.overall === "mock" && (
             <div className="border-t border-slate-700 pt-2 text-slate-500 space-y-1">

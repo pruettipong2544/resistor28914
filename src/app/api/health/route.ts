@@ -1,27 +1,30 @@
 import { NextResponse } from "next/server";
 import { probeQuote } from "@/lib/finnhub";
 import { probeFmp } from "@/lib/fmp";
+import { probeTwelveData } from "@/lib/twelvedata";
 
 export interface HealthResponse {
   finnhub: ProviderStatus;
   fmp: ProviderStatus;
+  twelvedata: ProviderStatus;
   overall: "real" | "partial" | "mock";
   checkedAt: number; // unix ms
 }
 
 interface ProviderStatus {
-  configured: boolean; // API key is set in env
+  configured: boolean;
   ok: boolean;
-  price?: number;      // sample price from AAPL probe
+  price?: number;
   reason: string;
 }
 
 const PROBE_SYMBOL = "AAPL";
 
 export async function GET() {
-  const [fhResult, fmpResult] = await Promise.all([
+  const [fhResult, fmpResult, tdResult] = await Promise.all([
     probeQuote(PROBE_SYMBOL),
     probeFmp(PROBE_SYMBOL),
+    probeTwelveData(PROBE_SYMBOL),
   ]);
 
   const finnhub: ProviderStatus = {
@@ -38,15 +41,22 @@ export async function GET() {
     reason: fmpResult.reason,
   };
 
-  const workingCount = [finnhub, fmp].filter(p => p.ok).length;
+  const twelvedata: ProviderStatus = {
+    configured: !!process.env.TWELVEDATA_API_KEY,
+    ok: tdResult.ok,
+    reason: tdResult.reason,
+  };
+
+  const workingCount = [finnhub, fmp, twelvedata].filter(p => p.ok).length;
   const overall: HealthResponse["overall"] =
-    workingCount === 2 ? "real" :
-    workingCount === 1 ? "partial" :
+    workingCount === 3 ? "real" :
+    workingCount >= 1 ? "partial" :
     "mock";
 
   const body: HealthResponse = {
     finnhub,
     fmp,
+    twelvedata,
     overall,
     checkedAt: Date.now(),
   };

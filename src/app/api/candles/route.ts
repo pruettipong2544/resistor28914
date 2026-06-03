@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchHistoricalPrices } from "@/lib/fmp";
+import { fetchTwelveDataCandles } from "@/lib/twelvedata";
 import { computePivotPoints, computeSignals } from "@/lib/indicators";
-import type { Timeframe, Candle, CandleApiResponse } from "@/types";
+import type { Timeframe, CandleApiResponse } from "@/types";
 
-// Request ~560 calendar days to cover EMA200 (≈400 trading days) for all timeframes.
-// FMP free tier provides daily EOD bars only.
-const LOOKBACK_DAYS = 560;
-const MAX_BARS = 400;
-
-function dateStr(offsetDays: number): string {
-  const d = new Date(Date.now() - offsetDays * 86_400_000);
-  return d.toISOString().slice(0, 10);
-}
+// 400 daily bars covers EMA200 (200 trading days) with room to spare.
+// Fetched on-demand (per symbol open) to stay within Twelve Data free quota.
+const OUTPUT_SIZE = 400;
 
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol")?.toUpperCase();
@@ -22,27 +16,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "invalid timeframe" }, { status: 400 });
   }
 
-  // ── Primary: FMP daily historical (free tier, EOD bars) ──────────────────
-  let candles: Candle[] = [];
-  let isMock = true;
+  // ── Primary: Twelve Data daily EOD (free, covers small-caps) ─────────────
+  const { candles, isMock, reason } = await fetchTwelveDataCandles(symbol, OUTPUT_SIZE);
 
-  const fromDate = dateStr(LOOKBACK_DAYS);
-  const toDate   = dateStr(0);
-  const fmp = await fetchHistoricalPrices(symbol, fromDate, toDate, MAX_BARS);
-  if (!fmp.isMock && fmp.bars.length > 0) {
-    candles = fmp.bars.map(b => ({
-      time: Math.floor(new Date(b.date).getTime() / 1000),
-      open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume,
-    }));
-    isMock = false;
-  } else {
-    console.log(`[candles:${symbol}:${timeframe}] FMP failed — no pivot/signal data available`);
+  if (isMock) {
+    console.log(`[candles:${symbol}:${timeframe}] no real data — reason: ${reason ?? "unknown"}`);
   }
 
   const currentPrice = candles[candles.length - 1]?.close ?? 0;
 
-  // Only compute pivot points / signals when we have real data.
-  // Mock candles have wrong price magnitudes so showing them would be misleading.
+  // Compute pivot/signals only when we have real bars.
   const pivotPoints = isMock ? null : computePivotPoints(candles);
   const signals     = isMock ? null : computeSignals(candles, pivotPoints);
 
