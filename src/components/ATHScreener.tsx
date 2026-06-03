@@ -78,70 +78,73 @@ export default function ATHScreener({ onSelectSymbol }: Props) {
             <p className="text-red-400 text-sm text-center py-4">⚠ {error}</p>
           )}
           {!loading && !error && results && (
-            <>
-              {hasMock && (
-                <p className="text-[11px] text-amber-500 mb-3">
-                  ข้อมูลสาธิต — เพิ่ม FMP_API_KEY ใน .env.local เพื่อดูข้อมูลจริง
-                </p>
-              )}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[520px]">
-                  <thead>
-                    <tr className="text-[11px] text-slate-500 border-b border-slate-700">
-                      <th className="text-left pb-2 font-medium">Symbol</th>
-                      <th className="text-left pb-2 font-medium hidden sm:table-cell">Company</th>
-                      <th className="text-right pb-2 font-medium">ราคา</th>
-                      <th className="text-right pb-2 font-medium">52W High</th>
-                      <th className="text-right pb-2 font-medium">Pullback</th>
-                      <th className="text-right pb-2 font-medium hidden md:table-cell">Mkt Cap</th>
-                      <th className="text-right pb-2 font-medium hidden lg:table-cell">Avg Vol</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((r) => (
-                      <tr
-                        key={r.symbol}
-                        onClick={() => onSelectSymbol(r.symbol)}
-                        className="border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer transition-colors"
-                      >
-                        <td className="py-2 pr-3">
-                          <span className="font-bold text-white">{r.symbol}</span>
-                        </td>
-                        <td className="py-2 pr-3 text-slate-400 text-xs hidden sm:table-cell max-w-[160px] truncate">
-                          {r.name}
-                        </td>
-                        <td className="py-2 text-right text-slate-200 font-mono text-xs">
-                          ${r.price.toFixed(2)}
-                        </td>
-                        <td className="py-2 text-right text-slate-400 font-mono text-xs">
-                          ${r.yearHigh.toFixed(2)}
-                        </td>
-                        <td className="py-2 text-right">
-                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            r.pullbackPct >= 0.3
-                              ? "bg-red-900/50 text-red-300"
-                              : r.pullbackPct >= 0.15
-                              ? "bg-amber-900/50 text-amber-300"
-                              : "bg-yellow-900/30 text-yellow-400"
-                          }`}>
-                            -{(r.pullbackPct * 100).toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="py-2 text-right text-slate-400 text-xs hidden md:table-cell">
-                          {fmtCap(r.marketCap)}
-                        </td>
-                        <td className="py-2 text-right text-slate-400 text-xs hidden lg:table-cell">
-                          {fmtVol(r.avgVolume)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            hasMock ? (
+              /* No real API key — never show fake screener numbers */
+              <div className="text-center py-8 space-y-1">
+                <p className="text-slate-400 text-sm">ต้องการข้อมูลจริงจาก FMP</p>
+                <p className="text-slate-600 text-xs">เพิ่ม <code className="text-slate-400">FMP_API_KEY</code> ใน <code className="text-slate-400">.env.local</code> เพื่อดู ATH pullback จริง</p>
               </div>
-              <p className="text-[10px] text-slate-600 mt-3">
-                แสดง {results.length} หุ้นที่ pullback จาก 52-week high มากที่สุด — คลิกแถวเพื่อดูกราฟ · ข้อมูลอาจดีเลย์ ไม่ใช่คำแนะนำการลงทุน
-              </p>
-            </>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]">
+                    <thead>
+                      <tr className="text-[11px] text-slate-500 border-b border-slate-700">
+                        <th className="text-left pb-2 font-medium">Symbol</th>
+                        <th className="text-left pb-2 font-medium hidden sm:table-cell">Company</th>
+                        <th className="text-right pb-2 font-medium">ราคา</th>
+                        <th className="text-right pb-2 font-medium">52W High</th>
+                        <th className="text-right pb-2 font-medium">Pullback</th>
+                        <th className="text-right pb-2 font-medium hidden md:table-cell">Mkt Cap</th>
+                        <th className="text-right pb-2 font-medium hidden lg:table-cell">Avg Vol</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.map((r) => (
+                        <tr
+                          key={r.symbol}
+                          onClick={() => onSelectSymbol(r.symbol)}
+                          className="border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer transition-colors"
+                        >
+                          <td className="py-2 pr-3">
+                            <span className="font-bold text-white">{r.symbol}</span>
+                          </td>
+                          <td className="py-2 pr-3 text-slate-400 text-xs hidden sm:table-cell max-w-[160px] truncate">
+                            {r.name}
+                          </td>
+                          <td className="py-2 text-right text-slate-200 font-mono text-xs">
+                            ${r.price.toFixed(2)}
+                          </td>
+                          <td className="py-2 text-right text-slate-400 font-mono text-xs">
+                            ${r.yearHigh.toFixed(2)}
+                          </td>
+                          <td className="py-2 text-right">
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                              r.pullbackPct >= 0.3
+                                ? "bg-red-900/50 text-red-300"
+                                : r.pullbackPct >= 0.15
+                                ? "bg-amber-900/50 text-amber-300"
+                                : "bg-yellow-900/30 text-yellow-400"
+                            }`}>
+                              -{(r.pullbackPct * 100).toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-2 text-right text-slate-400 text-xs hidden md:table-cell">
+                            {fmtCap(r.marketCap)}
+                          </td>
+                          <td className="py-2 text-right text-slate-400 text-xs hidden lg:table-cell">
+                            {fmtVol(r.avgVolume)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[10px] text-slate-600 mt-3">
+                  แสดง {results.length} หุ้นที่ pullback จาก 52-week high มากที่สุด — คลิกแถวเพื่อดูกราฟ · ข้อมูลอาจดีเลย์ ไม่ใช่คำแนะนำการลงทุน
+                </p>
+              </>
+            )
           )}
         </div>
       )}

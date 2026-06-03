@@ -52,10 +52,16 @@ export default function StockCard({ symbol, quote, onClick, onHide }: Props) {
       </div>
 
       {/* Price + change */}
-      {quote ? (
+      {!quote ? (
+        /* Still loading */
+        <div className="h-5 bg-slate-700/50 rounded animate-pulse w-3/4" />
+      ) : quote.isMock ? (
+        /* No real data — never show fake numbers */
+        <p className="text-[11px] text-slate-600 italic">ต่อ API จริงเพื่อดูราคา</p>
+      ) : (
         <div className="flex items-end justify-between gap-1">
           <span className="text-sm font-semibold text-white">
-            {quote.isMock ? "~" : ""}${quote.price.toFixed(2)}
+            ${quote.price.toFixed(2)}
           </span>
           <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
             isPos ? "bg-green-900/60 text-green-400" :
@@ -65,8 +71,6 @@ export default function StockCard({ symbol, quote, onClick, onHide }: Props) {
             {isPos ? "+" : ""}{pct!.toFixed(2)}%
           </span>
         </div>
-      ) : (
-        <div className="h-5 bg-slate-700/50 rounded animate-pulse w-3/4" />
       )}
 
       {/* Theme chips */}
