@@ -15,9 +15,42 @@ export interface PivotPoints {
   S1: number; S2: number; S3: number;
 }
 
+// --- Signal types ---
+
+export interface SignalVote {
+  indicator: string;
+  vote: "buy" | "sell" | "neutral";
+  reason: string; // short phrase explaining the vote
+}
+
+export interface SignalSummary {
+  label: string;        // Thai: "เอนไปทางซื้อ" / "ถือ/สังเกตการณ์" / "เอนไปทางขาย"
+  direction: "bullish" | "neutral" | "bearish";
+  score: number;        // (buy - sell) / total, range -1..+1
+  buyCount: number;
+  sellCount: number;
+  neutralCount: number;
+  votes: SignalVote[];
+}
+
+export interface TradeLevels {
+  entry: number;     // PP if above PP, else S1
+  target1: number;   // R1
+  target2: number;   // R2
+  stopLoss: number;  // max(S2, entry - 1.5×ATR)
+  rrRatio: number;   // (target1 - entry) / (entry - stopLoss)
+}
+
+export interface SignalData {
+  weekly: SignalSummary;    // short-term: RSI, MACD, EMA20, price vs PP
+  monthly: SignalSummary;   // trend: EMA50, EMA200, golden/death cross
+  tradeLevels: TradeLevels | null;
+}
+
 export interface CandleApiResponse {
   candles: Candle[];
   pivotPoints: PivotPoints | null;
   currentPrice: number;
   isMockData: boolean;
+  signals: SignalData | null;
 }

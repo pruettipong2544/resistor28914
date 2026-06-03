@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchCandles } from "@/lib/finnhub";
-import { computePivotPoints } from "@/lib/indicators";
+import { computePivotPoints, computeSignals } from "@/lib/indicators";
 import type { Timeframe, CandleApiResponse } from "@/types";
 
 export async function GET(req: NextRequest) {
@@ -14,16 +14,16 @@ export async function GET(req: NextRequest) {
 
   const { candles, isMock } = await fetchCandles(symbol, timeframe);
   const currentPrice = candles[candles.length - 1]?.close ?? 0;
-  const pivotPoints = computePivotPoints(candles);
+  const pivotPoints  = computePivotPoints(candles);
+  const signals      = computeSignals(candles, pivotPoints);
 
   const response: CandleApiResponse = {
     candles,
     pivotPoints,
     currentPrice,
     isMockData: isMock,
+    signals,
   };
 
-  return NextResponse.json(response, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
 }

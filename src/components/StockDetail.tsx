@@ -6,6 +6,7 @@ import { getTvSymbol, getCompanyName } from "@/config/stocks";
 import TradingViewChart, { type TvStudyId } from "./TradingViewChart";
 import TradingViewAnalysis from "./TradingViewAnalysis";
 import PivotPointsPanel from "./PivotPointsPanel";
+import SignalSummaryPanel from "./SignalSummaryPanel";
 
 interface Props {
   symbol: string;
@@ -189,6 +190,14 @@ export default function StockDetail({ symbol, onClose }: Props) {
                 />
               </div>
             </div>
+
+            {/* Signal Summary — our own indicator-based signals */}
+            {candleData?.signals && (
+              <SignalSummaryPanel
+                signals={candleData.signals}
+                currentPrice={candleData.currentPrice}
+              />
+            )}
 
             <div className="text-[11px] text-slate-600 border-t border-slate-800 pt-3">
               กราฟและ Technical Analysis มาจาก TradingView — แนวรับ/แนวต้านเป็นสูตรของเราเอง ข้อมูลอาจดีเลย์ ไม่ใช่คำแนะนำการลงทุน
