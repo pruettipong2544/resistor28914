@@ -189,3 +189,43 @@ export async function fetchScreener(params: FmpScreenerParams): Promise<{ data: 
   }
   return { data: [], isMock: true };
 }
+
+// ─── Historical OHLCV (daily bars) ───────────────────────────────────────────
+// Used as fallback when Finnhub is unavailable (e.g. cloud IP blocks).
+// FMP returns bars in reverse-chronological order; we reverse to ascending.
+
+export interface FmpHistoricalBar {
+  date: string;  // "YYYY-MM-DD"
+  open: number; high: number; low: number; close: number; volume: number;
+}
+
+export async function fetchHistoricalPrices(
+  symbol: string,
+  fromDate: string,   // "YYYY-MM-DD"
+  toDate: string,
+  maxBars: number
+): Promise<{ bars: FmpHistoricalBar[]; isMock: boolean }> {
+  const TTL = 30 * 60_000; // 30 minutes
+
+  const cacheKey = `fmp:hist:${symbol}:${fromDate}:${toDate}`;
+  const cached = getCached<FmpHistoricalBar[]>(cacheKey);
+  if (cached) return { bars: cached, isMock: false };
+
+  const key = apiKey();
+  if (key) {
+    try {
+      const url = `${BASE}/historical-price-full/${symbol}?from=${fromDate}&to=${toDate}&apikey=${key}`;
+      const res = await fetch(url, { next: { revalidate: 0 } });
+      if (res.ok) {
+        const data: { historical?: FmpHistoricalBar[] } = await res.json();
+        if (data.historical && data.historical.length > 0) {
+          // FMP returns newest-first; reverse to oldest-first, then trim
+          const bars = data.historical.slice().reverse().slice(-maxBars);
+          setCached(cacheKey, bars, TTL);
+          return { bars, isMock: false };
+        }
+      }
+    } catch { /* fall through */ }
+  }
+  return { bars: [], isMock: true };
+}

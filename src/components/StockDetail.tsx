@@ -5,6 +5,7 @@ import type { Timeframe, CandleApiResponse, DcfApiResponse } from "@/types";
 import { getTvSymbol, getCompanyName } from "@/config/stocks";
 import TradingViewChart, { type TvStudyId } from "./TradingViewChart";
 import TradingViewAnalysis from "./TradingViewAnalysis";
+import TradingViewSingleQuote from "./TradingViewSingleQuote";
 import PivotPointsPanel from "./PivotPointsPanel";
 import SignalSummaryPanel from "./SignalSummaryPanel";
 import DCFPanel from "./DCFPanel";
@@ -35,6 +36,18 @@ const STUDY_OPTIONS: StudyOption[] = [
 
 const DEFAULT_ENABLED = new Set(["rsi", "ema", "pivot"]);
 
+// Placeholder shown when real candle data is unavailable
+function NoRealDataCard({ title }: { title: string }) {
+  return (
+    <div className="bg-slate-800 rounded-xl p-4 border border-slate-700/60 flex flex-col items-center justify-center gap-1.5 py-6">
+      <span className="text-slate-500 text-xs font-mono">{title}</span>
+      <span className="text-slate-600 text-[11px] text-center">
+        ต่อ API จริง (Finnhub / FMP) เพื่อดูข้อมูล — ราคา mock ไม่แสดงเพื่อหลีกเลี่ยงความสับสนกับกราฟ
+      </span>
+    </div>
+  );
+}
+
 export default function StockDetail({ symbol, onClose }: Props) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1M");
   const [enabledStudies, setEnabledStudies] = useState<Set<string>>(DEFAULT_ENABLED);
@@ -61,7 +74,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
     });
   };
 
-  const loadPivots = useCallback(async (tf: Timeframe) => {
+  const loadCandles = useCallback(async (tf: Timeframe) => {
     setLoading(true);
     setError(null);
     try {
@@ -75,7 +88,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
     }
   }, [symbol]);
 
-  // DCF fetch once per symbol open (not per timeframe change)
+  // DCF fetch once per symbol open
   useEffect(() => {
     setDcfData(null);
     fetch(`/api/dcf?symbol=${symbol}`)
@@ -84,7 +97,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
       .catch(() => {});
   }, [symbol]);
 
-  useEffect(() => { loadPivots(timeframe); }, [timeframe, loadPivots]);
+  useEffect(() => { loadCandles(timeframe); }, [timeframe, loadCandles]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -92,33 +105,42 @@ export default function StockDetail({ symbol, onClose }: Props) {
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
-  return (
-    /* Overlay */
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+  const hasRealData = candleData !== null && !candleData.isMockData;
 
-      {/*
-        Modal: 90vh tall, flex-column so header is fixed and content scrolls.
-        max-w-6xl caps width on large screens.
-      */}
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div
         className="relative w-full max-w-6xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col"
         style={{ height: "90vh", maxHeight: "90vh" }}
       >
 
         {/* ── Sticky header ── */}
-        <div className="flex-shrink-0 bg-slate-900/95 backdrop-blur rounded-t-2xl border-b border-slate-700 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-baseline gap-3 min-w-0">
-            <h2 className="text-xl font-bold text-white">{symbol}</h2>
-            <span className="text-slate-400 text-sm truncate hidden sm:block">{companyName}</span>
-            <span className="text-xs text-slate-600 font-mono hidden md:block">{tvSymbol}</span>
+        <div className="flex-shrink-0 bg-slate-900/95 backdrop-blur rounded-t-2xl border-b border-slate-700 px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            {/* Left: name row */}
+            <div className="flex items-baseline gap-3 min-w-0 flex-shrink-0">
+              <h2 className="text-xl font-bold text-white">{symbol}</h2>
+              <span className="text-slate-400 text-sm truncate hidden sm:block">{companyName}</span>
+              <span className="text-xs text-slate-600 font-mono hidden md:block">{tvSymbol}</span>
+            </div>
+
+            {/* Center: TradingView real-time price (same source as chart) */}
+            <div className="flex-1 min-w-0 hidden sm:block">
+              <TradingViewSingleQuote key={tvSymbol} tvSymbol={tvSymbol} />
+            </div>
+
+            <button
+              onClick={onClose}
+              className="ml-1 flex-shrink-0 text-slate-400 hover:text-white text-2xl leading-none p-1"
+              aria-label="ปิด"
+            >✕</button>
           </div>
-          <button onClick={onClose} className="ml-3 flex-shrink-0 text-slate-400 hover:text-white text-2xl leading-none p-1" aria-label="ปิด">✕</button>
         </div>
 
         {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto flex flex-col">
 
-          {/* Controls (timeframe + study toggles) */}
+          {/* Controls */}
           <div className="flex-shrink-0 px-4 pt-3 pb-2 flex flex-wrap items-center gap-2 border-b border-slate-800">
             <div className="flex gap-1.5">
               {TIMEFRAMES.map((tf) => (
@@ -155,11 +177,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
             </div>
           </div>
 
-          {/*
-            Chart area: 58vh so it takes the majority of the 90vh modal.
-            The TV widget uses autosize:true and reads this CSS height.
-            Every container layer must be height:100% for autosize to work.
-          */}
+          {/* Chart area */}
           <div className="flex-shrink-0 px-4 pt-3" style={{ height: "58vh" }}>
             <div className="h-full rounded-xl overflow-hidden border border-slate-700">
               <TradingViewChart
@@ -171,7 +189,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
             </div>
           </div>
 
-          {/* Below-chart content — scrolls naturally */}
+          {/* Below-chart content */}
           <div className="px-4 pt-4 pb-6 space-y-4">
 
             {/* Pivot Points + Technical Analysis */}
@@ -186,11 +204,15 @@ export default function StockDetail({ symbol, onClose }: Props) {
                   <div className="bg-slate-800 rounded-xl p-3 text-red-400 text-xs text-center py-4">⚠ {error}</div>
                 )}
                 {!loading && !error && candleData && (
-                  <PivotPointsPanel
-                    pivotPoints={candleData.pivotPoints}
-                    currentPrice={candleData.currentPrice}
-                    isMockData={candleData.isMockData}
-                  />
+                  hasRealData ? (
+                    <PivotPointsPanel
+                      pivotPoints={candleData.pivotPoints}
+                      currentPrice={candleData.currentPrice}
+                      isMockData={false}
+                    />
+                  ) : (
+                    <NoRealDataCard title="แนวรับ / แนวต้าน" />
+                  )
                 )}
               </div>
               <div className="rounded-xl overflow-hidden border border-slate-700">
@@ -202,12 +224,16 @@ export default function StockDetail({ symbol, onClose }: Props) {
               </div>
             </div>
 
-            {/* Signal Summary — our own indicator-based signals */}
-            {candleData?.signals && (
-              <SignalSummaryPanel
-                signals={candleData.signals}
-                currentPrice={candleData.currentPrice}
-              />
+            {/* Signal Summary — only shown with real candle data */}
+            {!loading && !error && candleData && (
+              hasRealData && candleData.signals ? (
+                <SignalSummaryPanel
+                  signals={candleData.signals}
+                  currentPrice={candleData.currentPrice}
+                />
+              ) : !hasRealData ? (
+                <NoRealDataCard title="Signal Summary (RSI / EMA / MACD)" />
+              ) : null
             )}
 
             {/* DCF Valuation */}
@@ -220,7 +246,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
             )}
 
             <div className="text-[11px] text-slate-600 border-t border-slate-800 pt-3">
-              กราฟและ Technical Analysis มาจาก TradingView — แนวรับ/แนวต้านเป็นสูตรของเราเอง ข้อมูลอาจดีเลย์ ไม่ใช่คำแนะนำการลงทุน
+              กราฟและ Technical Analysis มาจาก TradingView · ราคาในหัวข้อมาจาก TradingView (ตรงกับกราฟ) · แนวรับ/แนวต้านคำนวณจากข้อมูลจริงเท่านั้น · ไม่ใช่คำแนะนำการลงทุน
             </div>
           </div>
         </div>
