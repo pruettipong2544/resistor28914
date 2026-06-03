@@ -9,19 +9,20 @@ interface Props {
 export default function ATHScreener({ onSelectSymbol: _onSelectSymbol }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const mounted = useRef(false);
 
   useEffect(() => {
-    if (!open || mounted.current || !containerRef.current) return;
-    mounted.current = true;
+    if (!open || !containerRef.current) return;
+
+    const container = containerRef.current;
+    container.innerHTML = ""; // clear any stale content from previous open
 
     const wrapper = document.createElement("div");
     wrapper.className = "tradingview-widget-container";
-    wrapper.style.cssText = "width:100%;height:100%;";
+    wrapper.style.cssText = "width:100%;height:490px;";
 
     const inner = document.createElement("div");
     inner.className = "tradingview-widget-container__widget";
-    inner.style.cssText = "width:100%;height:100%;";
+    inner.style.cssText = "width:100%;height:490px;";
     wrapper.appendChild(inner);
 
     const script = document.createElement("script");
@@ -30,18 +31,17 @@ export default function ATHScreener({ onSelectSymbol: _onSelectSymbol }: Props) 
     script.async = true;
     script.innerHTML = JSON.stringify({
       width: "100%",
-      height: 550,
-      defaultColumn: "performance",    // shows % from 52wk High column
+      height: 490,
+      defaultColumn: "overview",
       defaultScreen: "most_capitalized",
       market: "america",
       showToolbar: true,
       colorTheme: "dark",
       locale: "en",
-      isTransparent: true,
     });
     wrapper.appendChild(script);
 
-    containerRef.current.appendChild(wrapper);
+    container.appendChild(wrapper);
   }, [open]);
 
   return (
@@ -54,7 +54,7 @@ export default function ATHScreener({ onSelectSymbol: _onSelectSymbol }: Props) 
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-white">ATH Pullback Screener</span>
           <span className="text-[10px] text-slate-500 border border-slate-600 px-1.5 py-0.5 rounded">
-            US stocks · เรียง % จาก 52wk High ใน widget
+            US stocks · TradingView
           </span>
         </div>
         <span className={`text-slate-400 text-xs transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
@@ -62,19 +62,15 @@ export default function ATHScreener({ onSelectSymbol: _onSelectSymbol }: Props) 
 
       {open && (
         <div className="bg-slate-800/50 px-4 pb-4 pt-3 space-y-3">
-          {/* Usage hint */}
           <p className="text-[11px] text-slate-500">
-            ข้างล่างคือ TradingView Screener (US) — view <span className="text-slate-300 font-medium">Performance</span> แสดงคอลัมน์
-            <span className="text-slate-300"> % from 52wk High</span> ·
-            คลิก header คอลัมน์นั้นเพื่อเรียงจากมากไปน้อย (pullback สูงสุด) ·
-            กรองเพิ่มได้ด้วยปุ่ม <span className="text-slate-300">Filters</span> ใน widget
+            TradingView Screener (US) · คลิก header คอลัมน์ <span className="text-slate-300">% from 52wk High</span> เพื่อเรียงจาก pullback มากไปน้อย ·
+            กดปุ่ม <span className="text-slate-300">Filters</span> ใน widget เพื่อกรอง exchange / market cap / volume
           </p>
 
-          {/* TradingView Screener widget */}
+          {/* Widget container — explicit height required for iframe to render */}
           <div
             ref={containerRef}
-            style={{ minHeight: 560 }}
-            className="rounded-xl overflow-hidden"
+            style={{ height: 490 }}
           />
 
           <p className="text-[10px] text-slate-600">

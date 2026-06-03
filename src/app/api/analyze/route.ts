@@ -117,8 +117,9 @@ export async function POST(req: NextRequest) {
   }
 
   const key = process.env.ANTHROPIC_API_KEY;
+  console.log(`[analyze] ANTHROPIC_API_KEY configured: ${!!key}`);
   if (!key) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่า" }, { status: 503 });
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่าใน .env.local — รีสตาร์ท dev server หลังเพิ่ม key" }, { status: 503 });
   }
 
   let body: { message?: string; watchlist?: string[] };

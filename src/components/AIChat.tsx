@@ -58,20 +58,13 @@ export default function AIChat({ watchlist }: Props) {
         signal: ctrl.signal,
       });
 
-      if (res.status === 503) {
-        setNoKey(true);
-        setMessages(prev => [
-          ...prev.slice(0, -1),
-          { role: "assistant", content: "⚠ ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่าในเซิร์ฟเวอร์" },
-        ]);
-        return;
-      }
-
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "unknown error" }));
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        const reason = err.error ?? `HTTP ${res.status}`;
+        if (res.status === 503) setNoKey(true);
         setMessages(prev => [
           ...prev.slice(0, -1),
-          { role: "assistant", content: `⚠ ${err.error ?? "เกิดข้อผิดพลาด"}` },
+          { role: "assistant", content: `⚠ [${res.status}] ${reason}` },
         ]);
         return;
       }
@@ -118,10 +111,10 @@ export default function AIChat({ watchlist }: Props) {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button — z-50 so it sits above the fixed Disclaimer bar (z-40) */}
       <button
         onClick={() => setOpen(o => !o)}
-        className={`fixed bottom-6 right-6 z-40 w-13 h-13 rounded-full shadow-lg flex items-center justify-center text-xl transition-all ${
+        className={`fixed bottom-16 right-6 z-50 rounded-full shadow-lg flex items-center justify-center text-xl transition-all ${
           open
             ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
             : "bg-sky-600 hover:bg-sky-500 text-white"
@@ -136,7 +129,7 @@ export default function AIChat({ watchlist }: Props) {
       {/* Chat panel */}
       {open && (
         <div
-          className="fixed bottom-20 right-6 z-40 flex flex-col bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden"
+          className="fixed bottom-[88px] right-6 z-50 flex flex-col bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden"
           style={{ width: 380, height: 560, maxHeight: "70vh", maxWidth: "calc(100vw - 3rem)" }}
         >
           {/* Header */}
