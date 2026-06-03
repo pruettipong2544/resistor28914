@@ -67,13 +67,3 @@ export interface QuoteData {
 }
 
 
-export interface ScreenerResult {
-  symbol: string;
-  name: string;
-  price: number;
-  yearHigh: number;
-  pullbackPct: number;   // (yearHigh - price) / yearHigh, e.g. 0.25 = 25% off ATH
-  marketCap: number;     // in USD
-  avgVolume: number;
-  isMock: boolean;
-}

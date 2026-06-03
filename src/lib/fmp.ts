@@ -109,56 +109,6 @@ export async function fetchPrice(symbol: string): Promise<number> {
 }
 
 
-// ─── Stock screener ───────────────────────────────────────────────────────────
-
-export interface FmpScreenerItem {
-  symbol: string;
-  companyName: string;
-  marketCap: number;
-  price: number;
-  volume: number;
-}
-
-export interface FmpScreenerParams {
-  marketCapMoreThan?: number;
-  priceMoreThan?: number;
-  volumeMoreThan?: number;
-  exchange?: string;
-  isActivelyTrading?: boolean;
-  limit?: number;
-}
-
-export async function fetchScreener(params: FmpScreenerParams): Promise<{ data: FmpScreenerItem[]; isMock: boolean }> {
-  const TTL = 60 * 60_000; // 1 hour
-
-  const qs = Object.entries(params)
-    .filter(([, v]) => v !== undefined)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("&");
-  const cacheKey = `fmp:screener:${qs}`;
-  const cached = getCached<FmpScreenerItem[]>(cacheKey);
-  if (cached) return { data: cached, isMock: false };
-
-  const key = apiKey();
-  if (key) {
-    try {
-      const res = await fetch(`${BASE}/company-screener?${qs}&apikey=${key}`, { next: { revalidate: 0 } });
-      if (res.ok) {
-        const data: FmpScreenerItem[] = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setCached(cacheKey, data, TTL);
-          return { data, isMock: false };
-        }
-        console.log(`[fmp:screener] fail — empty response`);
-      } else {
-        console.log(`[fmp:screener] fail — ${fmpHttpReason(res.status)}`);
-      }
-    } catch (e) {
-      console.log(`[fmp:screener] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-  return { data: [], isMock: true };
-}
 
 // ─── Historical OHLCV (daily EOD bars) ───────────────────────────────────────
 // Primary data source for candles / pivot points / signals.
