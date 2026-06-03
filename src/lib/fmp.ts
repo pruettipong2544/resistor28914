@@ -108,55 +108,6 @@ export async function fetchPrice(symbol: string): Promise<number> {
   return mockSeed(symbol).price;
 }
 
-// ─── FMP Discounted Cash Flow ─────────────────────────────────────────────────
-// Returns FMP's pre-computed DCF intrinsic value and the stock price they used.
-
-export interface FmpDcfData {
-  dcf: number;
-  stockPrice: number; // FMP field may be "Stock Price" or "stockPrice"
-}
-
-export async function fetchFmpDcf(symbol: string): Promise<{ data: FmpDcfData | null; isMock: boolean; planError?: boolean }> {
-  const TTL = 4 * 60 * 60_000; // 4 hours
-
-  const cacheKey = `fmp:dcf:${symbol}`;
-  const cached = getCached<FmpDcfData>(cacheKey);
-  if (cached) return { data: cached, isMock: false };
-
-  const key = apiKey();
-  if (!key) return { data: null, isMock: true };
-
-  try {
-    const res = await fetch(`${BASE}/discounted-cash-flow?symbol=${symbol}&apikey=${key}`, { next: { revalidate: 0 } });
-    if (res.ok) {
-      const raw: unknown = await res.json();
-      const arr = Array.isArray(raw) ? raw : [raw];
-      const item = arr[0] as Record<string, unknown> | undefined;
-      if (item) {
-        const dcf = Number(item.dcf);
-        // FMP may return "Stock Price" (with space) or "stockPrice"
-        const stockPrice = Number(item["Stock Price"] ?? item.stockPrice ?? item.price ?? 0);
-        if (dcf > 0) {
-          const data: FmpDcfData = { dcf, stockPrice };
-          setCached(cacheKey, data, TTL);
-          console.log(`[fmp:dcf:${symbol}] ok — dcf=$${dcf.toFixed(2)} price=$${stockPrice.toFixed(2)}`);
-          return { data, isMock: false };
-        }
-        console.log(`[fmp:dcf:${symbol}] fail — dcf=${dcf} (zero/negative/missing)`);
-      } else {
-        console.log(`[fmp:dcf:${symbol}] fail — empty response`);
-      }
-    } else if (res.status === 402) {
-      console.log(`[fmp:dcf:${symbol}] fail — ${fmpHttpReason(res.status)}`);
-      return { data: null, isMock: false, planError: true };
-    } else {
-      console.log(`[fmp:dcf:${symbol}] fail — ${fmpHttpReason(res.status)}`);
-    }
-  } catch (e) {
-    console.log(`[fmp:dcf:${symbol}] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  return { data: null, isMock: true };
-}
 
 // ─── Stock screener ───────────────────────────────────────────────────────────
 

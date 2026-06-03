@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Timeframe, CandleApiResponse, DcfApiResponse, QuoteData } from "@/types";
-import { getTvSymbol, getCompanyName } from "@/config/stocks";
+import type { Timeframe, CandleApiResponse, QuoteData } from "@/types";
+import { getTvSymbol, getCompanyName, getValuationType } from "@/config/stocks";
 import TradingViewChart, { type TvStudyId } from "./TradingViewChart";
 import TradingViewAnalysis from "./TradingViewAnalysis";
 import TradingViewSingleQuote from "./TradingViewSingleQuote";
 import PivotPointsPanel from "./PivotPointsPanel";
 import SignalSummaryPanel from "./SignalSummaryPanel";
-import DCFPanel from "./DCFPanel";
+import ValuationSnapshot from "./ValuationSnapshot";
 
 interface Props {
   symbol: string;
@@ -62,11 +62,11 @@ export default function StockDetail({ symbol, onClose }: Props) {
   const [candleData, setCandleData] = useState<CandleApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dcfData, setDcfData] = useState<DcfApiResponse | null>(null);
   const [quote, setQuote] = useState<QuoteData | null>(null);
 
   const tvSymbol = getTvSymbol(symbol);
   const companyName = getCompanyName(symbol);
+  const valuationType = getValuationType(symbol);
 
   const activeStudies: TvStudyId[] = STUDY_OPTIONS
     .filter((s) => enabledStudies.has(s.key))
@@ -97,14 +97,9 @@ export default function StockDetail({ symbol, onClose }: Props) {
     }
   }, [symbol]);
 
-  // DCF + quote fetch once per symbol open
+  // Quote fetch once per symbol open
   useEffect(() => {
-    setDcfData(null);
     setQuote(null);
-    fetch(`/api/dcf?symbol=${symbol}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setDcfData(d); })
-      .catch(() => {});
     fetch(`/api/quotes?symbols=${symbol}`)
       .then(r => r.ok ? r.json() : null)
       .then((d: Record<string, QuoteData> | null) => { if (d?.[symbol]) setQuote(d[symbol]); })
@@ -269,18 +264,14 @@ export default function StockDetail({ symbol, onClose }: Props) {
               ) : null
             )}
 
-            {/* DCF Valuation */}
-            {dcfData ? (
-              <DCFPanel
-                dcf={dcfData}
-                symbol={symbol}
-                livePrice={quote && !quote.isMock ? quote.price : undefined}
-              />
-            ) : (
-              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 h-24 flex items-center justify-center">
-                <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
+            {/* Valuation Snapshot */}
+            <ValuationSnapshot
+              key={`val-${symbol}`}
+              symbol={symbol}
+              tvSymbol={tvSymbol}
+              valuationType={valuationType}
+              quote={quote}
+            />
 
             <div className="text-[11px] text-slate-600 border-t border-slate-800 pt-3">
               กราฟและ Technical Analysis มาจาก TradingView · ราคาในหัวข้อมาจาก TradingView (ตรงกับกราฟ) · แนวรับ/แนวต้านคำนวณจากข้อมูลจริงเท่านั้น · ไม่ใช่คำแนะนำการลงทุน

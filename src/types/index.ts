@@ -66,22 +66,6 @@ export interface QuoteData {
   extendedTimestamp?: number; // unix seconds
 }
 
-export interface DcfResult {
-  intrinsicValue: number;   // per share, from FMP DCF
-  currentPrice: number;
-  upside: number;           // (intrinsic - current) / current
-  fcfPerShare?: number;     // optional — not always available
-  isMock: boolean;
-  notApplicable: false;
-}
-
-export interface DcfNA {
-  notApplicable: true;
-  reason: string;           // e.g. "FCF < 0 (ยังไม่มีกำไร)"
-  isMock: boolean;
-}
-
-export type DcfApiResponse = DcfResult | DcfNA;
 
 export interface ScreenerResult {
   symbol: string;

@@ -92,6 +92,26 @@ export const STOCK_THEMES: Record<string, string[]> = {
   IREN: ["Crypto", "AI"],
 };
 
+export type ValuationType = "profitable" | "growth" | "preRevenue";
+
+export const VALUATION_TYPE: Record<string, ValuationType> = {
+  // Consistent earnings — P/E, PEG, EV/EBITDA, P/FCF meaningful
+  AAPL: "profitable", MSFT: "profitable", NVDA: "profitable",
+  AMZN: "profitable", NOW: "profitable", INTC: "profitable", TSLA: "profitable",
+  // Growing revenue, may be unprofitable — EV/Sales, growth rate, gross margin
+  SOFI: "growth", IREN: "growth", KTOS: "growth",
+  AXTI: "growth", ASPI: "growth", RDW: "growth",
+  // Pre-revenue or tiny revenue — multiples N/A, focus on cash runway & narrative
+  IONQ: "preRevenue", RGTI: "preRevenue", QBTS: "preRevenue",
+  OKLO: "preRevenue", ASTS: "preRevenue", CRML: "preRevenue",
+  EOSE: "preRevenue", AMPX: "preRevenue",
+};
+
+/** Returns valuation type, defaulting to growth for unknown symbols */
+export function getValuationType(ticker: string): ValuationType {
+  return VALUATION_TYPE[ticker] ?? "growth";
+}
+
 export const ALL_THEMES = Array.from(new Set(Object.values(STOCK_THEMES).flat())).sort();
 
 export function getThemes(ticker: string): string[] { return STOCK_THEMES[ticker] ?? []; }
