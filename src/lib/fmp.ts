@@ -1,38 +1,16 @@
 // Financial Modeling Prep API client — SERVER-SIDE ONLY.
-// All functions fall back to deterministic mock data when FMP_API_KEY is unset
-// or when the API call fails, so the app is always fully functional without a key.
+// Uses the stable API (https://financialmodelingprep.com/stable/) exclusively.
+// v3/legacy endpoints were deprecated and closed for new accounts after Aug 2025.
 
 import { getCached, setCached } from "./cache";
 
-const BASE = "https://financialmodelingprep.com/api/v3";
+const BASE = "https://financialmodelingprep.com/stable";
 
 function apiKey(): string | null {
   return process.env.FMP_API_KEY ?? null;
 }
 
-async function fmpFetch<T>(path: string, ttlMs: number): Promise<T | null> {
-  const key = process.env.FMP_API_KEY;
-  if (!key) return null;
-
-  const cacheKey = `fmp:${path}`;
-  const cached = getCached<T>(cacheKey);
-  if (cached) return cached;
-
-  try {
-    const sep = path.includes("?") ? "&" : "?";
-    const res = await fetch(`${BASE}${path}${sep}apikey=${key}`, { next: { revalidate: 0 } });
-    if (!res.ok) return null;
-    const data: T = await res.json();
-    setCached(cacheKey, data, ttlMs);
-    return data;
-  } catch {
-    return null;
-  }
-}
-
 // ─── Shared mock seed (LCG) ───────────────────────────────────────────────────
-// Same algorithm as finnhub.ts mockSeedPrice — ensures prices are consistent
-// across all mock responses.
 
 export function mockSeed(symbol: string): { price: number; rand: () => number } {
   const seed = symbol.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
@@ -41,6 +19,13 @@ export function mockSeed(symbol: string): { price: number; rand: () => number } 
   const base = (seed % 280) + 20;
   const price = parseFloat((base * (0.85 + rand() * 0.3)).toFixed(2));
   return { price, rand };
+}
+
+function fmpHttpReason(status: number): string {
+  if (status === 401 || status === 403) return `HTTP ${status} — invalid or unauthorised FMP_API_KEY`;
+  if (status === 429) return `HTTP 429 — FMP rate limited`;
+  if (status === 402) return `HTTP 402 — endpoint not available in your FMP plan`;
+  return `HTTP ${status}`;
 }
 
 // ─── Quote (price + daily change) ────────────────────────────────────────────
@@ -53,17 +38,10 @@ export interface FmpQuoteItem {
   changesPercentage: number;
   yearHigh: number;
   avgVolume: number;
-  // Extended / after-hours fields (present in FMP /quote endpoint)
   extendedPrice?: number;
   extendedChange?: number;
   extendedChangePercent?: number;
   extendedPriceTimestamp?: number; // unix seconds
-}
-
-function fmpHttpReason(status: number): string {
-  if (status === 401 || status === 403) return `HTTP ${status} — invalid or unauthorised FMP_API_KEY`;
-  if (status === 429) return `HTTP 429 — FMP rate limited`;
-  return `HTTP ${status}`;
 }
 
 export async function fetchQuotes(symbols: string[]): Promise<{ data: FmpQuoteItem[]; isMock: boolean }> {
@@ -79,7 +57,7 @@ export async function fetchQuotes(symbols: string[]): Promise<{ data: FmpQuoteIt
   } else {
     try {
       const joined = symbols.join(",");
-      const res = await fetch(`${BASE}/quote/${joined}?apikey=${key}`, { next: { revalidate: 0 } });
+      const res = await fetch(`${BASE}/quote?symbol=${joined}&apikey=${key}`, { next: { revalidate: 0 } });
       if (res.ok) {
         const data: FmpQuoteItem[] = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -114,13 +92,13 @@ export async function fetchQuotes(symbols: string[]): Promise<{ data: FmpQuoteIt
   return { data: mock, isMock: true };
 }
 
-// ─── Quote-short (price only, lighter) ───────────────────────────────────────
+// ─── Price (lightweight, used by DCF route) ──────────────────────────────────
 
 export async function fetchPrice(symbol: string): Promise<number> {
   const key = apiKey();
   if (key) {
     try {
-      const res = await fetch(`${BASE}/quote-short/${symbol}?apikey=${key}`, { next: { revalidate: 0 } });
+      const res = await fetch(`${BASE}/quote-short?symbol=${symbol}&apikey=${key}`, { next: { revalidate: 0 } });
       if (res.ok) {
         const data: { price?: number }[] = await res.json();
         if (data[0]?.price) return data[0].price;
@@ -130,34 +108,52 @@ export async function fetchPrice(symbol: string): Promise<number> {
   return mockSeed(symbol).price;
 }
 
-// ─── Key metrics TTM ─────────────────────────────────────────────────────────
+// ─── FMP Discounted Cash Flow ─────────────────────────────────────────────────
+// Returns FMP's pre-computed DCF intrinsic value and the stock price they used.
 
-export interface FmpKeyMetrics {
-  freeCashFlowPerShareTTM?: number;
-  peRatioTTM?: number;
-  priceToBookRatioTTM?: number;
+export interface FmpDcfData {
+  dcf: number;
+  stockPrice: number; // FMP field may be "Stock Price" or "stockPrice"
 }
 
-export async function fetchKeyMetricsTTM(symbol: string): Promise<{ data: FmpKeyMetrics | null; isMock: boolean }> {
+export async function fetchFmpDcf(symbol: string): Promise<{ data: FmpDcfData | null; isMock: boolean; planError?: boolean }> {
   const TTL = 4 * 60 * 60_000; // 4 hours
 
-  const cacheKey = `fmp:km:${symbol}`;
-  const cached = getCached<FmpKeyMetrics>(cacheKey);
+  const cacheKey = `fmp:dcf:${symbol}`;
+  const cached = getCached<FmpDcfData>(cacheKey);
   if (cached) return { data: cached, isMock: false };
 
   const key = apiKey();
-  if (key) {
-    try {
-      const res = await fetch(`${BASE}/key-metrics-ttm/${symbol}?apikey=${key}`, { next: { revalidate: 0 } });
-      if (res.ok) {
-        const arr: FmpKeyMetrics[] = await res.json();
-        const m = Array.isArray(arr) ? arr[0] : null;
-        if (m) {
-          setCached(cacheKey, m, TTL);
-          return { data: m, isMock: false };
+  if (!key) return { data: null, isMock: true };
+
+  try {
+    const res = await fetch(`${BASE}/discounted-cash-flow?symbol=${symbol}&apikey=${key}`, { next: { revalidate: 0 } });
+    if (res.ok) {
+      const raw: unknown = await res.json();
+      const arr = Array.isArray(raw) ? raw : [raw];
+      const item = arr[0] as Record<string, unknown> | undefined;
+      if (item) {
+        const dcf = Number(item.dcf);
+        // FMP may return "Stock Price" (with space) or "stockPrice"
+        const stockPrice = Number(item["Stock Price"] ?? item.stockPrice ?? item.price ?? 0);
+        if (dcf > 0) {
+          const data: FmpDcfData = { dcf, stockPrice };
+          setCached(cacheKey, data, TTL);
+          console.log(`[fmp:dcf:${symbol}] ok — dcf=$${dcf.toFixed(2)} price=$${stockPrice.toFixed(2)}`);
+          return { data, isMock: false };
         }
+        console.log(`[fmp:dcf:${symbol}] fail — dcf=${dcf} (zero/negative/missing)`);
+      } else {
+        console.log(`[fmp:dcf:${symbol}] fail — empty response`);
       }
-    } catch { /* fall through */ }
+    } else if (res.status === 402) {
+      console.log(`[fmp:dcf:${symbol}] fail — ${fmpHttpReason(res.status)}`);
+      return { data: null, isMock: false, planError: true };
+    } else {
+      console.log(`[fmp:dcf:${symbol}] fail — ${fmpHttpReason(res.status)}`);
+    }
+  } catch (e) {
+    console.log(`[fmp:dcf:${symbol}] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
   }
   return { data: null, isMock: true };
 }
@@ -176,7 +172,7 @@ export interface FmpScreenerParams {
   marketCapMoreThan?: number;
   priceMoreThan?: number;
   volumeMoreThan?: number;
-  country?: string;
+  exchange?: string;
   isActivelyTrading?: boolean;
   limit?: number;
 }
@@ -195,39 +191,31 @@ export async function fetchScreener(params: FmpScreenerParams): Promise<{ data: 
   const key = apiKey();
   if (key) {
     try {
-      const res = await fetch(`${BASE}/stock-screener?${qs}&apikey=${key}`, { next: { revalidate: 0 } });
+      const res = await fetch(`${BASE}/company-screener?${qs}&apikey=${key}`, { next: { revalidate: 0 } });
       if (res.ok) {
         const data: FmpScreenerItem[] = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setCached(cacheKey, data, TTL);
           return { data, isMock: false };
         }
+        console.log(`[fmp:screener] fail — empty response`);
+      } else {
+        console.log(`[fmp:screener] fail — ${fmpHttpReason(res.status)}`);
       }
-    } catch { /* fall through */ }
+    } catch (e) {
+      console.log(`[fmp:screener] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   return { data: [], isMock: true };
 }
 
-// ─── Historical OHLCV (daily bars) ───────────────────────────────────────────
-// Primary data source for candles. FMP returns newest-first; we reverse to asc.
-// Tries stable endpoint first, then v3 as fallback.
+// ─── Historical OHLCV (daily EOD bars) ───────────────────────────────────────
+// Primary data source for candles / pivot points / signals.
+// FMP returns newest-first; we reverse to ascending chronological order.
 
 export interface FmpHistoricalBar {
   date: string;  // "YYYY-MM-DD"
   open: number; high: number; low: number; close: number; volume: number;
-}
-
-const BASE_STABLE = "https://financialmodelingprep.com/stable";
-
-function parseBars(raw: unknown): FmpHistoricalBar[] | null {
-  if (Array.isArray(raw) && raw.length > 0 && "date" in raw[0]) {
-    return raw as FmpHistoricalBar[];
-  }
-  const obj = raw as { historical?: FmpHistoricalBar[] };
-  if (obj?.historical && obj.historical.length > 0) {
-    return obj.historical;
-  }
-  return null;
 }
 
 export async function fetchHistoricalPrices(
@@ -248,37 +236,35 @@ export async function fetchHistoricalPrices(
     return { bars: [], isMock: true };
   }
 
-  const qs = `from=${fromDate}&to=${toDate}&apikey=${key}`;
-  const endpoints = [
-    `${BASE_STABLE}/historical-price/${symbol}?${qs}`,
-    `${BASE}/historical-price-full/${symbol}?${qs}`,
-  ];
-
-  for (const url of endpoints) {
-    const label = url.includes("/stable/") ? "stable" : "v3";
-    try {
-      const res = await fetch(url, { next: { revalidate: 0 } });
-      if (!res.ok) {
-        console.log(`[fmp:hist:${symbol}:${label}] fail — ${fmpHttpReason(res.status)}`);
-        continue;
-      }
-      const raw: unknown = await res.json();
-      const parsed = parseBars(raw);
-      if (!parsed) {
-        console.log(`[fmp:hist:${symbol}:${label}] fail — empty or unrecognised response shape`);
-        continue;
-      }
-      const bars = parsed.slice().reverse().slice(-maxBars);
-      console.log(`[fmp:hist:${symbol}:${label}] ok — ${bars.length} bars`);
-      setCached(cacheKey, bars, TTL);
-      return { bars, isMock: false };
-    } catch (e) {
-      console.log(`[fmp:hist:${symbol}:${label}] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
+  const url = `${BASE}/historical-price-eod/full?symbol=${symbol}&from=${fromDate}&to=${toDate}&apikey=${key}`;
+  try {
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) {
+      console.log(`[fmp:hist:${symbol}] fail — ${fmpHttpReason(res.status)}`);
+      return { bars: [], isMock: true };
     }
+    const raw: unknown = await res.json();
+    // Stable returns flat array: [{date,open,high,low,close,volume}]
+    // v3 wrapper shape [{historical:[...]}] should not appear but handle it anyway
+    let parsed: FmpHistoricalBar[] | null = null;
+    if (Array.isArray(raw) && raw.length > 0 && "date" in (raw[0] as object)) {
+      parsed = raw as FmpHistoricalBar[];
+    } else {
+      const obj = raw as { historical?: FmpHistoricalBar[] };
+      if (obj?.historical?.length) parsed = obj.historical;
+    }
+    if (!parsed) {
+      console.log(`[fmp:hist:${symbol}] fail — unrecognised response shape`);
+      return { bars: [], isMock: true };
+    }
+    const bars = parsed.slice().reverse().slice(-maxBars);
+    console.log(`[fmp:hist:${symbol}] ok — ${bars.length} bars`);
+    setCached(cacheKey, bars, TTL);
+    return { bars, isMock: false };
+  } catch (e) {
+    console.log(`[fmp:hist:${symbol}] fail — network error: ${e instanceof Error ? e.message : String(e)}`);
+    return { bars: [], isMock: true };
   }
-
-  console.log(`[fmp:hist:${symbol}] both endpoints failed — using mock`);
-  return { bars: [], isMock: true };
 }
 
 // ─── Health probe (used by /api/health) ──────────────────────────────────────
@@ -287,7 +273,7 @@ export async function probeFmp(symbol: string): Promise<{ ok: boolean; price?: n
   const key = apiKey();
   if (!key) return { ok: false, reason: "missing FMP_API_KEY" };
   try {
-    const res = await fetch(`${BASE}/quote-short/${symbol}?apikey=${key}`, { next: { revalidate: 0 } });
+    const res = await fetch(`${BASE}/quote-short?symbol=${symbol}&apikey=${key}`, { next: { revalidate: 0 } });
     if (!res.ok) return { ok: false, reason: fmpHttpReason(res.status) };
     const data: { price?: number }[] = await res.json();
     const price = data[0]?.price;

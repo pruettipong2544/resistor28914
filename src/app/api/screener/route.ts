@@ -39,7 +39,7 @@ export async function GET() {
     marketCapMoreThan: 500_000_000,
     priceMoreThan: 3,
     volumeMoreThan: 300_000,
-    country: "US",
+    exchange: "NASDAQ,NYSE",
     isActivelyTrading: true,
     limit: CANDIDATE_LIMIT,
   });

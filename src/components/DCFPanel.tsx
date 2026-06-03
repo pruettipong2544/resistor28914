@@ -113,30 +113,14 @@ export default function DCFPanel({ dcf, symbol, livePrice }: Props) {
             </div>
           )}
 
-          {/* Assumptions — labeled clearly as model inputs */}
+          {/* Source note */}
           <div className="border-t border-slate-700 pt-3">
-            <p className="text-[10px] text-slate-500 mb-2">
-              สมมติฐานแบบจำลอง
-              <span className="ml-1 text-slate-600">(เปลี่ยนสมมติฐาน → ผลเปลี่ยนมาก)</span>
+            <p className="text-[10px] text-slate-500">
+              ค่า DCF คำนวณโดย FMP (Financial Modeling Prep)
+              {!dcf.isMock && dcf.fcfPerShare !== undefined && (
+                <span className="ml-2 text-slate-600">· FCF/share (TTM): <span className="font-mono text-slate-400">{fmt(dcf.fcfPerShare, 4)}</span></span>
+              )}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[11px]">
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500">FCF/share (TTM)</span>
-                <span className="text-slate-300 font-mono">{fmt(dcf.fcfPerShare, 4)}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500">Growth (ปี 1–5)</span>
-                <span className="text-slate-300 font-mono">10%</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500">Terminal g</span>
-                <span className="text-slate-300 font-mono">3%</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500">WACC (r)</span>
-                <span className="text-slate-300 font-mono">10%</span>
-              </div>
-            </div>
           </div>
         </>
       )}

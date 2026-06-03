@@ -67,10 +67,10 @@ export interface QuoteData {
 }
 
 export interface DcfResult {
-  intrinsicValue: number;   // per share, discounted
+  intrinsicValue: number;   // per share, from FMP DCF
   currentPrice: number;
   upside: number;           // (intrinsic - current) / current
-  fcfPerShare: number;
+  fcfPerShare?: number;     // optional — not always available
   isMock: boolean;
   notApplicable: false;
 }
