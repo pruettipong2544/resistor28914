@@ -10,6 +10,7 @@ import AddStockModal from "@/components/AddStockModal";
 import HiddenList from "@/components/HiddenList";
 import Disclaimer from "@/components/Disclaimer";
 import TradingViewTickerTape from "@/components/TradingViewTickerTape";
+import ATHScreener from "@/components/ATHScreener";
 
 export default function Home() {
   const { watchlist, hidden, hydrated, addToWatchlist, hideStock, restoreStock, removeHidden, resetToDefaults } = useWatchlist();
@@ -143,6 +144,9 @@ export default function Home() {
             ))}
           </div>
         )}
+
+        {/* ATH Pullback Screener */}
+        <ATHScreener onSelectSymbol={(sym) => setSelectedSymbol(sym)} />
 
         <HiddenList hidden={hidden} onRestore={restoreStock} onRemove={removeHidden} />
       </main>
