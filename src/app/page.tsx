@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useWatchlist } from "@/hooks/useWatchlist";
-import { getCompanyName } from "@/config/stocks";
+import { useQuotes } from "@/hooks/useQuotes";
+import { getCompanyName, ALL_THEMES, getThemes } from "@/config/stocks";
 import StockCard from "@/components/StockCard";
 import StockDetail from "@/components/StockDetail";
 import AddStockModal from "@/components/AddStockModal";
@@ -12,11 +13,13 @@ import TradingViewTickerTape from "@/components/TradingViewTickerTape";
 
 export default function Home() {
   const { watchlist, hidden, hydrated, addToWatchlist, hideStock, restoreStock, removeHidden, resetToDefaults } = useWatchlist();
+  const { quotes } = useQuotes(watchlist);
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [filter, setFilter] = useState("");
+  const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
   const handleHide = (symbol: string) => {
     if (confirm(`ซ่อน ${symbol} ออกจาก watchlist?`)) {
@@ -29,12 +32,15 @@ export default function Home() {
     resetToDefaults();
     setShowResetConfirm(false);
     setFilter("");
+    setThemeFilter(null);
   };
 
-  const filteredWatchlist = watchlist.filter((s) =>
-    s.toLowerCase().includes(filter.toLowerCase()) ||
-    getCompanyName(s).toLowerCase().includes(filter.toLowerCase())
-  );
+  const filteredWatchlist = watchlist
+    .filter((s) =>
+      s.toLowerCase().includes(filter.toLowerCase()) ||
+      getCompanyName(s).toLowerCase().includes(filter.toLowerCase())
+    )
+    .filter((s) => !themeFilter || getThemes(s).includes(themeFilter));
 
   if (!hydrated) {
     return (
@@ -86,14 +92,43 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-5 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
         <p className="text-sm text-slate-500">
           {watchlist.length} หุ้นใน watchlist — คลิกการ์ดเพื่อดูกราฟ TradingView + แนวรับ/แนวต้าน
         </p>
 
+        {/* Theme filter pills */}
+        <div className="overflow-x-auto">
+          <div className="flex gap-2 pb-1">
+            <button
+              onClick={() => setThemeFilter(null)}
+              className={`whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                themeFilter === null
+                  ? "bg-sky-600 border-sky-500 text-white"
+                  : "bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-200"
+              }`}
+            >
+              ทั้งหมด
+            </button>
+            {ALL_THEMES.map((theme) => (
+              <button
+                key={theme}
+                onClick={() => setThemeFilter(t => t === theme ? null : theme)}
+                className={`whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  themeFilter === theme
+                    ? "bg-sky-600 border-sky-500 text-white"
+                    : "bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-200"
+                }`}
+              >
+                {theme}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {filteredWatchlist.length === 0 ? (
           <div className="text-center py-16 text-slate-500">
-            {filter ? `ไม่พบ "${filter}"` : "ไม่มีหุ้นใน watchlist กด + เพื่อเพิ่ม"}
+            {filter || themeFilter ? `ไม่พบผลลัพธ์` : "ไม่มีหุ้นใน watchlist กด + เพื่อเพิ่ม"}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -101,6 +136,7 @@ export default function Home() {
               <StockCard
                 key={symbol}
                 symbol={symbol}
+                quote={quotes[symbol]}
                 onClick={() => setSelectedSymbol(symbol)}
                 onHide={() => handleHide(symbol)}
               />

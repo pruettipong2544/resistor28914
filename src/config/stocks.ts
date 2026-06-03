@@ -67,3 +67,31 @@ export function getTvSymbol(ticker: string): string {
 export function getCompanyName(ticker: string): string {
   return COMPANY_NAMES[ticker] ?? ticker;
 }
+
+export const STOCK_THEMES: Record<string, string[]> = {
+  AAPL: ["AI", "Tech"],
+  MSFT: ["AI", "Tech"],
+  NVDA: ["AI", "Semiconductor"],
+  TSLA: ["EV", "AI"],
+  AMZN: ["AI", "Tech"],
+  IONQ: ["Quantum"],
+  RGTI: ["Quantum"],
+  QBTS: ["Quantum"],
+  OKLO: ["Nuclear"],
+  ASPI: ["Nuclear"],
+  RDW:  ["Space", "Defense"],
+  KTOS: ["Defense"],
+  SOFI: ["Fintech"],
+  NOW:  ["AI", "Tech"],
+  EOSE: ["Energy"],
+  ASTS: ["Space"],
+  CRML: ["Biotech"],
+  AMPX: ["Energy", "Semiconductor"],
+  INTC: ["AI", "Semiconductor"],
+  AXTI: ["Semiconductor"],
+  IREN: ["Crypto", "AI"],
+};
+
+export const ALL_THEMES = Array.from(new Set(Object.values(STOCK_THEMES).flat())).sort();
+
+export function getThemes(ticker: string): string[] { return STOCK_THEMES[ticker] ?? []; }

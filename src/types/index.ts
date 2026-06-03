@@ -54,3 +54,5 @@ export interface CandleApiResponse {
   isMockData: boolean;
   signals: SignalData | null;
 }
+
+export interface QuoteData { price: number; change: number; changePct: number; isMock: boolean; }
