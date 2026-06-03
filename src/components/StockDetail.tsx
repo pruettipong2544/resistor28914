@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Timeframe, CandleApiResponse } from "@/types";
+import type { Timeframe, CandleApiResponse, DcfApiResponse } from "@/types";
 import { getTvSymbol, getCompanyName } from "@/config/stocks";
 import TradingViewChart, { type TvStudyId } from "./TradingViewChart";
 import TradingViewAnalysis from "./TradingViewAnalysis";
 import PivotPointsPanel from "./PivotPointsPanel";
 import SignalSummaryPanel from "./SignalSummaryPanel";
+import DCFPanel from "./DCFPanel";
 
 interface Props {
   symbol: string;
@@ -40,6 +41,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
   const [candleData, setCandleData] = useState<CandleApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dcfData, setDcfData] = useState<DcfApiResponse | null>(null);
 
   const tvSymbol = getTvSymbol(symbol);
   const companyName = getCompanyName(symbol);
@@ -71,6 +73,15 @@ export default function StockDetail({ symbol, onClose }: Props) {
     } finally {
       setLoading(false);
     }
+  }, [symbol]);
+
+  // DCF fetch once per symbol open (not per timeframe change)
+  useEffect(() => {
+    setDcfData(null);
+    fetch(`/api/dcf?symbol=${symbol}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setDcfData(d); })
+      .catch(() => {});
   }, [symbol]);
 
   useEffect(() => { loadPivots(timeframe); }, [timeframe, loadPivots]);
@@ -197,6 +208,15 @@ export default function StockDetail({ symbol, onClose }: Props) {
                 signals={candleData.signals}
                 currentPrice={candleData.currentPrice}
               />
+            )}
+
+            {/* DCF Valuation */}
+            {dcfData ? (
+              <DCFPanel dcf={dcfData} symbol={symbol} />
+            ) : (
+              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 h-24 flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+              </div>
             )}
 
             <div className="text-[11px] text-slate-600 border-t border-slate-800 pt-3">

@@ -56,3 +56,20 @@ export interface CandleApiResponse {
 }
 
 export interface QuoteData { price: number; change: number; changePct: number; isMock: boolean; }
+
+export interface DcfResult {
+  intrinsicValue: number;   // per share, discounted
+  currentPrice: number;
+  upside: number;           // (intrinsic - current) / current
+  fcfPerShare: number;
+  isMock: boolean;
+  notApplicable: false;
+}
+
+export interface DcfNA {
+  notApplicable: true;
+  reason: string;           // e.g. "FCF < 0 (ยังไม่มีกำไร)"
+  isMock: boolean;
+}
+
+export type DcfApiResponse = DcfResult | DcfNA;
