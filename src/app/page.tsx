@@ -12,6 +12,7 @@ import Disclaimer from "@/components/Disclaimer";
 import TradingViewTickerTape from "@/components/TradingViewTickerTape";
 import ATHScreener from "@/components/ATHScreener";
 import DataSourceBadge from "@/components/DataSourceBadge";
+import AIChat from "@/components/AIChat";
 
 export default function Home() {
   const { watchlist, hidden, hydrated, addToWatchlist, hideStock, restoreStock, removeHidden, resetToDefaults } = useWatchlist();
@@ -188,6 +189,9 @@ export default function Home() {
       )}
 
       <Disclaimer />
+
+      {/* AI Chat — floating panel, grounded in real watchlist data */}
+      <AIChat watchlist={watchlist} />
     </div>
   );
 }
