@@ -181,7 +181,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
               tvSymbol={tvSymbol}
               timeframe={timeframe}
               studies={activeStudies}
-              height={560}
+              height={1400}
             />
           </div>
 
