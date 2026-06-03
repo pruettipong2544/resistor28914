@@ -193,3 +193,75 @@ export async function validateTicker(
     return { valid: true, name: symbol }; // mock fallback
   }
 }
+
+// --- Real-time quote (price + daily change) ---
+// Uses parallel fetches (not throttledFetch) since we batch many symbols
+// and the 30-second TTL cache keeps us well under the 60 req/min limit.
+
+interface FinnhubQuoteRaw {
+  c: number;  // current price
+  d: number;  // change
+  dp: number; // change percent
+  t: number;  // timestamp (unix)
+}
+
+export interface FinnhubQuoteResult {
+  price: number;
+  change: number;
+  changePct: number;
+}
+
+// Classifies an HTTP status into a human-readable reason (never exposes key values)
+function httpReason(status: number): string {
+  if (status === 401 || status === 403) return `HTTP ${status} — invalid or unauthorised API key`;
+  if (status === 429) return `HTTP 429 — rate limited`;
+  if (status === 404) return `HTTP 404 — symbol not found`;
+  return `HTTP ${status}`;
+}
+
+async function fetchSingleQuote(symbol: string): Promise<{ result: FinnhubQuoteResult | null; reason: string }> {
+  const cacheKey = `fhquote:${symbol}`;
+  const cached = getCached<FinnhubQuoteResult>(cacheKey);
+  if (cached) return { result: cached, reason: "cache hit" };
+
+  let key: string;
+  try { key = apiKey(); }
+  catch { return { result: null, reason: "missing FINNHUB_API_KEY" }; }
+
+  try {
+    const url = `${BASE}/quote?symbol=${symbol}&token=${key}`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) return { result: null, reason: httpReason(res.status) };
+    const data: FinnhubQuoteRaw = await res.json();
+    if (!data.c || data.c === 0) return { result: null, reason: "empty response (symbol may be invalid or market closed)" };
+    const result: FinnhubQuoteResult = { price: data.c, change: data.d ?? 0, changePct: data.dp ?? 0 };
+    setCached(cacheKey, result, TTL.QUOTE);
+    return { result, reason: "ok" };
+  } catch (e) {
+    return { result: null, reason: `network error — ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+export async function fetchBatchQuotes(
+  symbols: string[]
+): Promise<{ results: Map<string, FinnhubQuoteResult>; anyReal: boolean }> {
+  const entries = await Promise.all(
+    symbols.map(async (sym) => {
+      const { result, reason } = await fetchSingleQuote(sym);
+      if (result) {
+        console.log(`[finnhub:quote:${sym}] ok — price=${result.price}`);
+      } else {
+        console.log(`[finnhub:quote:${sym}] fail — ${reason}`);
+      }
+      return [sym, result] as const;
+    })
+  );
+  const results = new Map(entries.filter(([, v]) => v !== null) as [string, FinnhubQuoteResult][]);
+  return { results, anyReal: results.size > 0 };
+}
+
+// Exported for the /api/health endpoint
+export async function probeQuote(symbol: string): Promise<{ ok: boolean; price?: number; reason: string }> {
+  const { result, reason } = await fetchSingleQuote(symbol);
+  return result ? { ok: true, price: result.price, reason: "ok" } : { ok: false, reason };
+}

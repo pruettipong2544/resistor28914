@@ -32,14 +32,17 @@ export async function GET(req: NextRequest) {
 
   const finnhub = await fetchCandles(symbol, timeframe);
   if (!finnhub.isMock) {
+    console.log(`[finnhub:candles:${symbol}:${timeframe}] ok — ${finnhub.candles.length} bars`);
     candles = finnhub.candles;
     isMock = false;
   } else {
+    console.log(`[finnhub:candles:${symbol}:${timeframe}] fail — fell back (see finnhub.ts logs)`);
     // ── Step 2: try FMP as fallback ─────────────────────────────────────────
     const fromDate = dateStr(LOOKBACK_DAYS[timeframe]);
     const toDate   = dateStr(0);
     const fmp = await fetchHistoricalPrices(symbol, fromDate, toDate, MAX_CANDLES[timeframe]);
     if (!fmp.isMock && fmp.bars.length > 0) {
+      console.log(`[fmp:candles:${symbol}:${timeframe}] ok — ${fmp.bars.length} bars`);
       candles = fmp.bars.map(b => ({
         time: Math.floor(new Date(b.date).getTime() / 1000),
         open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume,
@@ -47,7 +50,8 @@ export async function GET(req: NextRequest) {
       isMock = false;
     } else {
       // ── Step 3: mock (both sources unavailable) ──────────────────────────
-      candles = finnhub.candles; // finnhub.ts already generated mock candles
+      console.log(`[candles:${symbol}:${timeframe}] both providers failed — using mock data`);
+      candles = finnhub.candles;
       isMock = true;
     }
   }

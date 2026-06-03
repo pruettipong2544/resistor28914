@@ -11,6 +11,7 @@ import HiddenList from "@/components/HiddenList";
 import Disclaimer from "@/components/Disclaimer";
 import TradingViewTickerTape from "@/components/TradingViewTickerTape";
 import ATHScreener from "@/components/ATHScreener";
+import DataSourceBadge from "@/components/DataSourceBadge";
 
 export default function Home() {
   const { watchlist, hidden, hydrated, addToWatchlist, hideStock, restoreStock, removeHidden, resetToDefaults } = useWatchlist();
@@ -75,6 +76,7 @@ export default function Home() {
           />
 
           <div className="flex items-center gap-2 ml-auto">
+            <DataSourceBadge />
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition-colors"
