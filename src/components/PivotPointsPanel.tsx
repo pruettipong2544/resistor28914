@@ -57,12 +57,17 @@ export default function PivotPointsPanel({ pivotPoints: pp, currentPrice, isMock
         </div>
       )}
 
-      <div className="mt-3 pt-2 border-t border-slate-700">
+      <div className="mt-3 pt-2 border-t border-slate-700 space-y-0.5">
         <p className="text-[10px] text-slate-500 leading-relaxed">
           ราคาปัจจุบัน: <span className="text-slate-300 font-mono">${currentPrice.toFixed(2)}</span>
           {isMockData && <span className="ml-2 text-amber-500">(ข้อมูลตัวอย่าง)</span>}
         </p>
-        <p className="text-[10px] text-slate-600 mt-1">
+        {pp?.pivotCandleDate && (
+          <p className="text-[10px] text-slate-600">
+            อิงแท่งวัน <span className="font-mono text-slate-500">{pp.pivotCandleDate}</span>
+          </p>
+        )}
+        <p className="text-[10px] text-slate-600">
           สูตรเราเอง — ไม่ใช่ TradingView
         </p>
       </div>

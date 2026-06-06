@@ -32,12 +32,26 @@ import type { Candle, PivotPoints, SignalVote, SignalSummary, SignalData, TradeL
 
 export function computePivotPoints(candles: Candle[]): PivotPoints | null {
   if (candles.length < 2) return null;
-  const { high: H, low: L, close: C } = candles[candles.length - 2];
+
+  // Standard pivot uses the *previous complete* trading day's H/L/C.
+  // Twelve Data may include today's partial bar as the newest entry (before EOD).
+  // Detect this: if the last bar's date matches today's UTC date it's partial →
+  // step back one more. Otherwise the last bar is itself the prior complete day.
+  const lastBar = candles[candles.length - 1];
+  const lastDate = new Date(lastBar.time * 1000).toISOString().slice(0, 10);
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const refIdx = lastDate === todayUtc ? candles.length - 2 : candles.length - 1;
+  if (refIdx < 0) return null;
+
+  const ref = candles[refIdx];
+  const pivotCandleDate = new Date(ref.time * 1000).toISOString().slice(0, 10);
+  const { high: H, low: L, close: C } = ref;
   const PP = (H + L + C) / 3;
   return {
     PP,
     R1: 2 * PP - L, R2: PP + (H - L), R3: H + 2 * (PP - L),
     S1: 2 * PP - H, S2: PP - (H - L), S3: L - 2 * (H - PP),
+    pivotCandleDate,
   };
 }
 

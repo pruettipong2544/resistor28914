@@ -29,6 +29,21 @@ export async function GET(req: NextRequest) {
 
   // Compute pivot/signals only when we have real bars.
   const pivotPoints = isMock ? null : computePivotPoints(candles);
+
+  if (pivotPoints && candles.length >= 2) {
+    const lastBar = candles[candles.length - 1];
+    const lastDate = new Date(lastBar.time * 1000).toISOString().slice(0, 10);
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const isPartial = lastDate === todayUtc;
+    const refBar = candles[isPartial ? candles.length - 2 : candles.length - 1];
+    console.log(
+      `[candles:${symbol}] pivot ref: ${pivotPoints.pivotCandleDate}` +
+      ` H=${refBar.high.toFixed(2)} L=${refBar.low.toFixed(2)} C=${refBar.close.toFixed(2)}` +
+      ` | last bar: ${lastDate} (${isPartial ? "partial/today" : "EOD complete"})` +
+      ` | currentPrice (candle): ${currentPrice.toFixed(2)}`
+    );
+  }
+
   const signals     = isMock ? null : computeSignals(candles, pivotPoints);
 
   const response: CandleApiResponse = {

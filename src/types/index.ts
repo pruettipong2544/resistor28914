@@ -13,6 +13,8 @@ export interface PivotPoints {
   PP: number;
   R1: number; R2: number; R3: number;
   S1: number; S2: number; S3: number;
+  /** ISO date (YYYY-MM-DD) of the candle whose H/L/C was used to compute pivots */
+  pivotCandleDate?: string;
 }
 
 // --- Signal types ---

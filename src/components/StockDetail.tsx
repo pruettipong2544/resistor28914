@@ -306,7 +306,7 @@ export default function StockDetail({ symbol, onClose }: Props) {
                   hasRealData ? (
                     <PivotPointsPanel
                       pivotPoints={candleData.pivotPoints}
-                      currentPrice={candleData.currentPrice}
+                      currentPrice={quote?.price ?? candleData.currentPrice}
                       isMockData={false}
                     />
                   ) : (
