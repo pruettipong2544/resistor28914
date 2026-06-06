@@ -22,7 +22,17 @@ export function setCached<T>(key: string, data: T, ttlMs: number): void {
   store.set(key, { data, expiresAt: Date.now() + ttlMs });
 }
 
-// TTL constants (milliseconds)
+export function deleteCached(key: string): void {
+  store.delete(key);
+}
+
+export function deleteCachedByPrefix(prefix: string): void {
+  Array.from(store.keys()).forEach(k => {
+    if (k.startsWith(prefix)) store.delete(k);
+  });
+}
+
+
 export const TTL = {
   QUOTE: 30_000,        // 30 seconds — near real-time price
   CANDLE_1D: 5 * 60_000,      // 5 minutes

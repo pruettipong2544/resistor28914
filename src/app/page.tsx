@@ -13,10 +13,11 @@ import TradingViewTickerTape from "@/components/TradingViewTickerTape";
 import ATHScreener from "@/components/ATHScreener";
 import DataSourceBadge from "@/components/DataSourceBadge";
 import AIChat from "@/components/AIChat";
+import Timestamp from "@/components/Timestamp";
 
 export default function Home() {
   const { watchlist, hidden, hydrated, addToWatchlist, hideStock, restoreStock, removeHidden, resetToDefaults } = useWatchlist();
-  const { quotes } = useQuotes(watchlist);
+  const { quotes, loading: quotesLoading, lastUpdated: quotesUpdatedAt, refreshError: quotesError, refresh: refreshQuotes } = useQuotes(watchlist);
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -77,6 +78,29 @@ export default function Home() {
           />
 
           <div className="flex items-center gap-2 ml-auto">
+            {/* Quote timestamp + refresh */}
+            <div className="hidden sm:flex flex-col items-end gap-0.5">
+              <Timestamp date={quotesUpdatedAt} label="ราคา" />
+              {quotesError && (
+                <span className="text-[10px] text-red-400 max-w-[180px] truncate" title={quotesError}>
+                  ⚠ {quotesError}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={refreshQuotes}
+              disabled={quotesLoading}
+              className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white transition-colors disabled:opacity-40"
+              title="รีเฟรชราคาทุกการ์ด (throttle 15 วินาที)"
+            >
+              <svg
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                className={`w-3.5 h-3.5 ${quotesLoading ? "animate-spin" : ""}`}
+              >
+                <path d="M1 4v6h6M23 20v-6h-6" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
             <DataSourceBadge />
             <button
               onClick={() => setShowAddModal(true)}
@@ -97,9 +121,14 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
-        <p className="text-sm text-slate-500">
-          {watchlist.length} หุ้นใน watchlist — คลิกการ์ดเพื่อดูกราฟ TradingView + แนวรับ/แนวต้าน
-        </p>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+          <p className="text-sm text-slate-500">
+            {watchlist.length} หุ้นใน watchlist — คลิกการ์ดเพื่อดูกราฟ TradingView + แนวรับ/แนวต้าน
+          </p>
+          <span className="text-[10px] text-slate-600">
+            ราคา (Finnhub) ≈ near-real-time · ค่าเทคนิค (Twelve Data) = candle รายวัน อัปเดตครั้งแรกของวัน
+          </span>
+        </div>
 
         {/* Theme filter pills */}
         <div className="overflow-x-auto">

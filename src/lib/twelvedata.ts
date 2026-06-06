@@ -41,11 +41,14 @@ function tdReason(res: TwelveDataResponse, httpStatus: number): string {
 
 export async function fetchTwelveDataCandles(
   symbol: string,
-  outputsize = 400
+  outputsize = 400,
+  forceRefresh = false,
 ): Promise<{ candles: Candle[]; isMock: boolean; reason?: string }> {
   const cacheKey = `td:candles:${symbol}:${outputsize}`;
-  const cached = getCached<Candle[]>(cacheKey);
-  if (cached) return { candles: cached, isMock: false };
+  if (!forceRefresh) {
+    const cached = getCached<Candle[]>(cacheKey);
+    if (cached) return { candles: cached, isMock: false };
+  }
 
   const key = apiKey();
   if (!key) {

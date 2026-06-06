@@ -16,8 +16,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "invalid timeframe" }, { status: 400 });
   }
 
+  const forceRefresh = req.nextUrl.searchParams.get("refresh") === "1";
+
   // ── Primary: Twelve Data daily EOD (free, covers small-caps) ─────────────
-  const { candles, isMock, reason } = await fetchTwelveDataCandles(symbol, OUTPUT_SIZE);
+  const { candles, isMock, reason } = await fetchTwelveDataCandles(symbol, OUTPUT_SIZE, forceRefresh);
 
   if (isMock) {
     console.log(`[candles:${symbol}:${timeframe}] no real data — reason: ${reason ?? "unknown"}`);

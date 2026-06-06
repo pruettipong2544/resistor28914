@@ -7,11 +7,12 @@ export async function GET(req: NextRequest) {
   const symbolsParam = req.nextUrl.searchParams.get("symbols");
   if (!symbolsParam) return NextResponse.json({ error: "symbols required" }, { status: 400 });
   const symbols = symbolsParam.toUpperCase().split(",").filter(Boolean);
+  const forceRefresh = req.nextUrl.searchParams.get("refresh") === "1";
 
   const result: Record<string, QuoteData> = {};
 
   // ── Step 1: try Finnhub (parallel, uses FINNHUB_API_KEY) ─────────────────
-  const { results: fhMap, anyReal: fhOk } = await fetchBatchQuotes(symbols);
+  const { results: fhMap, anyReal: fhOk } = await fetchBatchQuotes(symbols, forceRefresh);
 
   if (fhOk) {
     for (const sym of symbols) {

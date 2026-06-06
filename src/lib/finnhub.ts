@@ -219,10 +219,12 @@ function httpReason(status: number): string {
   return `HTTP ${status}`;
 }
 
-async function fetchSingleQuote(symbol: string): Promise<{ result: FinnhubQuoteResult | null; reason: string }> {
+async function fetchSingleQuote(symbol: string, forceRefresh = false): Promise<{ result: FinnhubQuoteResult | null; reason: string }> {
   const cacheKey = `fhquote:${symbol}`;
-  const cached = getCached<FinnhubQuoteResult>(cacheKey);
-  if (cached) return { result: cached, reason: "cache hit" };
+  if (!forceRefresh) {
+    const cached = getCached<FinnhubQuoteResult>(cacheKey);
+    if (cached) return { result: cached, reason: "cache hit" };
+  }
 
   let key: string;
   try { key = apiKey(); }
@@ -243,11 +245,12 @@ async function fetchSingleQuote(symbol: string): Promise<{ result: FinnhubQuoteR
 }
 
 export async function fetchBatchQuotes(
-  symbols: string[]
+  symbols: string[],
+  forceRefresh = false,
 ): Promise<{ results: Map<string, FinnhubQuoteResult>; anyReal: boolean }> {
   const entries = await Promise.all(
     symbols.map(async (sym) => {
-      const { result, reason } = await fetchSingleQuote(sym);
+      const { result, reason } = await fetchSingleQuote(sym, forceRefresh);
       if (result) {
         console.log(`[finnhub:quote:${sym}] ok — price=${result.price}`);
       } else {
