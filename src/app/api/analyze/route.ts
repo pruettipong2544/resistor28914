@@ -105,7 +105,7 @@ STRICT RULES — follow these exactly:
    - NEVER give a direct buy/sell command or guarantee any outcome
    - End with: "⚠ ข้อมูลนี้เป็นการวิเคราะห์ทางเทคนิคเพื่อประกอบการตัดสินใจเท่านั้น ไม่ใช่คำแนะนำการลงทุน"
 5. For short-term signals (weekly/monthly): always note that short-term signals are uncertain and can fail.
-6. Keep responses clear and concise. Respond in the same language as the user (Thai or English).
+6. Be concise but always finish your thought — never stop mid-sentence or mid-list. Prioritize completing the explanation over adding extra detail.
 7. If multiple symbols are compared, structure the response clearly per symbol.`;
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ User question: ${message}`;
 
   const stream = anthropic.messages.stream({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
+    max_tokens: 2048,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessageWithContext }],
   });
@@ -189,6 +189,16 @@ User question: ${message}`;
           ) {
             controller.enqueue(enc.encode(event.delta.text));
           }
+        }
+        // Wait for the full message so we can inspect stop_reason —
+        // the delta loop above ends once content stops, but the final
+        // message (with stop_reason) is only available after this resolves.
+        const final = await stream.finalMessage();
+        console.log(`[analyze] stop_reason=${final.stop_reason} output_tokens=${final.usage?.output_tokens}`);
+        if (final.stop_reason === "max_tokens") {
+          controller.enqueue(enc.encode(
+            "\n\n⚠ [คำตอบถูกตัดเพราะยาวเกิน max_tokens — ลองถามให้เจาะจงขึ้นหรือถามต่อเพื่อดูส่วนที่เหลือ]"
+          ));
         }
       } finally {
         controller.close();
