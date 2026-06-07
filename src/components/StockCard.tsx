@@ -1,10 +1,11 @@
 "use client";
-import { getCompanyName, getThemes } from "@/config/stocks";
+import { getCompanyName, getEffectiveThemes } from "@/config/stocks";
 import type { QuoteData } from "@/types";
 
 interface Props {
   symbol: string;
   quote?: QuoteData;
+  autoTags?: string[];
   onClick: () => void;
   onHide: () => void;
 }
@@ -22,12 +23,14 @@ const THEME_COLORS: Record<string, string> = {
   Semiconductor:"bg-blue-900/50 text-blue-300 border-blue-700/40",
   Crypto:       "bg-amber-900/50 text-amber-300 border-amber-700/40",
   Tech:         "bg-sky-900/50 text-sky-300 border-sky-700/40",
+  Healthcare:   "bg-teal-900/50 text-teal-300 border-teal-700/40",
+  Stock:        "bg-slate-700/50 text-slate-400 border-slate-600/40",
 };
 const DEFAULT_THEME_COLOR = "bg-slate-700/50 text-slate-400 border-slate-600/40";
 
-export default function StockCard({ symbol, quote, onClick, onHide }: Props) {
+export default function StockCard({ symbol, quote, autoTags, onClick, onHide }: Props) {
   const name = getCompanyName(symbol);
-  const themes = getThemes(symbol);
+  const themes = getEffectiveThemes(symbol, autoTags);
 
   const pct = quote?.changePct;
   const isPos = pct !== undefined && pct > 0;

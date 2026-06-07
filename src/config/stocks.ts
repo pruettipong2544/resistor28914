@@ -112,6 +112,24 @@ export function getValuationType(ticker: string): ValuationType {
   return VALUATION_TYPE[ticker] ?? "growth";
 }
 
-export const ALL_THEMES = Array.from(new Set(Object.values(STOCK_THEMES).flat())).sort();
-
 export function getThemes(ticker: string): string[] { return STOCK_THEMES[ticker] ?? []; }
+
+/**
+ * Effective tags for a ticker: manual STOCK_THEMES takes precedence
+ * (covers niche themes like Quantum/Space/Nuclear that sector data can't express).
+ * For tickers without a manual mapping, falls back to auto-detected sector tags
+ * (looked up at add-time and persisted in localStorage via useWatchlist).
+ */
+export function getEffectiveThemes(ticker: string, autoTags?: string[]): string[] {
+  const manual = getThemes(ticker);
+  if (manual.length > 0) return manual;
+  if (autoTags && autoTags.length > 0) return autoTags;
+  return ["Stock"];
+}
+
+/** All theme labels available for filtering — manual themes ∪ provided auto tags */
+export function getAllThemes(autoTagSets: string[][] = []): string[] {
+  const all = new Set(Object.values(STOCK_THEMES).flat());
+  autoTagSets.forEach((tags) => tags.forEach((t) => all.add(t)));
+  return Array.from(all).sort();
+}

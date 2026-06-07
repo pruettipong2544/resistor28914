@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useQuotes } from "@/hooks/useQuotes";
-import { getCompanyName, ALL_THEMES, getThemes } from "@/config/stocks";
+import { getCompanyName, getEffectiveThemes, getAllThemes } from "@/config/stocks";
 import StockCard from "@/components/StockCard";
 import StockDetail from "@/components/StockDetail";
 import AddStockModal from "@/components/AddStockModal";
@@ -16,7 +16,7 @@ import AIChat from "@/components/AIChat";
 import Timestamp from "@/components/Timestamp";
 
 export default function Home() {
-  const { watchlist, hidden, hydrated, addToWatchlist, hideStock, restoreStock, removeHidden, resetToDefaults } = useWatchlist();
+  const { watchlist, hidden, autoTags, hydrated, addToWatchlist, hideStock, restoreStock, removeHidden, resetToDefaults } = useWatchlist();
   const { quotes, loading: quotesLoading, lastUpdated: quotesUpdatedAt, refreshError: quotesError, refresh: refreshQuotes } = useQuotes(watchlist);
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -39,12 +39,15 @@ export default function Home() {
     setThemeFilter(null);
   };
 
+  const themesFor = (s: string) => getEffectiveThemes(s, autoTags[s]);
+  const allThemes = getAllThemes(Object.values(autoTags));
+
   const filteredWatchlist = watchlist
     .filter((s) =>
       s.toLowerCase().includes(filter.toLowerCase()) ||
       getCompanyName(s).toLowerCase().includes(filter.toLowerCase())
     )
-    .filter((s) => !themeFilter || getThemes(s).includes(themeFilter));
+    .filter((s) => !themeFilter || themesFor(s).includes(themeFilter));
 
   if (!hydrated) {
     return (
@@ -143,7 +146,7 @@ export default function Home() {
             >
               ทั้งหมด
             </button>
-            {ALL_THEMES.map((theme) => (
+            {allThemes.map((theme) => (
               <button
                 key={theme}
                 onClick={() => setThemeFilter(t => t === theme ? null : theme)}
@@ -170,6 +173,7 @@ export default function Home() {
                 key={symbol}
                 symbol={symbol}
                 quote={quotes[symbol]}
+                autoTags={autoTags[symbol]}
                 onClick={() => setSelectedSymbol(symbol)}
                 onHide={() => handleHide(symbol)}
               />
@@ -211,7 +215,7 @@ export default function Home() {
       {/* Add stock modal */}
       {showAddModal && (
         <AddStockModal
-          onAdd={(symbol) => addToWatchlist(symbol)}
+          onAdd={(symbol, _name, tags) => addToWatchlist(symbol, tags)}
           onClose={() => setShowAddModal(false)}
           existingSymbols={[...watchlist, ...hidden]}
         />

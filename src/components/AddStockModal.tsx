@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 
 interface Props {
-  onAdd: (symbol: string, name: string) => void;
+  onAdd: (symbol: string, name: string, tags: string[]) => void;
   onClose: () => void;
   existingSymbols: string[];
 }
@@ -42,7 +42,19 @@ export default function AddStockModal({ onAdd, onClose, existingSymbols }: Props
         setError(`ไม่พบ ticker "${symbol}" — กรุณาตรวจสอบชื่อ`);
         return;
       }
-      onAdd(symbol, data.name);
+
+      // Best-effort sector lookup — used as a fallback tag when no manual
+      // theme mapping exists for this ticker. Failure shouldn't block adding.
+      let tags: string[] = ["Stock"];
+      try {
+        const tagRes = await fetch(`/api/sector?symbol=${symbol}`);
+        if (tagRes.ok) {
+          const tagData: { tags: string[] } = await tagRes.json();
+          if (tagData.tags?.length) tags = tagData.tags;
+        }
+      } catch {}
+
+      onAdd(symbol, data.name, tags);
       onClose();
     } catch {
       setError("เกิดข้อผิดพลาด กรุณาลองใหม่");
